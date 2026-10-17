@@ -1,5 +1,11 @@
 import { t } from '@/i18n'
 import { pluralize } from '@/lib/plural'
+import { useAuthStore } from '@/stores/authStore'
+
+/** Zone dates and times are shown in: the profile's zone (Ф3 3.F1), else the browser's. */
+function displayZone(): string | undefined {
+  return useAuthStore.getState().user?.timezone || undefined
+}
 
 /** "только что", "5 минут назад", "около 3 часов назад", "2 дня назад". */
 export function timeAgo(iso: string): string {
@@ -25,6 +31,7 @@ export function shortDate(iso: string): string {
   const d = new Date(iso)
   const sameYear = d.getFullYear() === new Date().getFullYear()
   return d.toLocaleDateString('ru-RU', {
+    timeZone: displayZone(),
     day: 'numeric',
     month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
@@ -34,6 +41,7 @@ export function shortDate(iso: string): string {
 /** "17 октября 2026" */
 export function longDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ru-RU', {
+    timeZone: displayZone(),
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -61,6 +69,7 @@ export function isoToDateInput(iso: string | null | undefined, timeZone?: string
 /** "17 октября, 14:05" */
 export function dateTime(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
+    timeZone: displayZone(),
     day: 'numeric',
     month: 'long',
     hour: '2-digit',

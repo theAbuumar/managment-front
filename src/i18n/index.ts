@@ -17,3 +17,6 @@ export default i18n
 
 /** Translate outside React components (toasts in api/stores, helpers). */
 export const t = i18n.t.bind(i18n)
+
+/** Interface languages that have translations. A new one is added here with its resource file. */
+export const LANGUAGES: { code: 'ru' | 'en'; label: string }[] = [{ code: 'ru', label: 'Русский' }]

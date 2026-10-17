@@ -20,6 +20,7 @@ import { InviteTokenPage } from '@/features/invitations/InviteTokenPage'
 import { NotificationsPage } from '@/features/notifications/NotificationsPage'
 import { YourWorkPage } from '@/features/your-work/YourWorkPage'
 import { HomePage } from '@/features/home/HomePage'
+import { ProfilePage } from '@/features/profile/ProfilePage'
 
 // Only sections with a real page are routed (ADR-019); new pages are added here
 // together with their flag in src/lib/features.ts.
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <HomePage /> },
           { path: 'your-work', element: <YourWorkPage /> },
+          { path: 'profile', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           // Canonical path — the backend's invite emails link here.
           { path: 'invitations', element: <WorkspaceInvitesPage /> },

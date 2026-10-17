@@ -15,8 +15,9 @@ import {
   UserPlus,
   Mail,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { PersonAvatar } from '@/components/ui/person-avatar'
+import { WorkspaceLogo } from '@/components/ui/workspace-logo'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,8 +36,8 @@ import {
   type WorkspaceData,
 } from '@/api/workspace'
 import { getNotifications } from '@/api/notification'
-import { ProfileDialog } from '@/features/profile/ProfileDialog'
 import { pluralize } from '@/lib/plural'
+import { fullName } from '@/lib/people'
 import { t as translate } from '@/i18n'
 
 // How often the bell re-checks the unread count while the app is open.
@@ -75,12 +76,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const setUnreadCount = useNotificationStore((s) => s.setUnreadCount)
 
   const [switcherOpen, setSwitcherOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   const [meta, setMeta] = useState<Record<string, WsMeta>>({})
 
-  const wsInitial = workspace?.name?.[0]?.toUpperCase() ?? 'W'
   const wsName = workspace?.name ?? t('Пространство')
-  const userInitial = user?.display_name?.[0]?.toUpperCase() ?? 'U'
   const otherWorkspaces = workspaces.filter((w) => w.id !== workspace?.id)
 
   // Refresh the workspace list and each workspace's member count / my role
@@ -170,9 +168,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       <DropdownMenu open={switcherOpen} onOpenChange={setSwitcherOpen}>
         <DropdownMenuTrigger asChild>
           <button className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-muted transition-colors">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
-              {wsInitial}
-            </div>
+            <WorkspaceLogo workspace={workspace} size={24} />
             <span className="hidden text-sm font-medium md:block">
               {wsName}
             </span>
@@ -190,9 +186,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
           {/* Current workspace */}
           <div className="flex items-center gap-2.5 px-2 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              {wsInitial}
-            </div>
+            <WorkspaceLogo workspace={workspace} size={36} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground">
                 {wsName}
@@ -234,9 +228,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                     onClick={() => switchWorkspace(ws)}
                     className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left hover:bg-muted transition-colors"
                   >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-                      {ws.name[0]?.toUpperCase()}
-                    </div>
+                    <WorkspaceLogo workspace={ws} size={28} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">
                         {ws.name}
@@ -305,25 +297,24 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         {/* Profile dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-purple-600 text-xs font-semibold text-white">
-                  {userInitial}
-                </AvatarFallback>
-              </Avatar>
+            <button
+              aria-label={t('Меню профиля')}
+              className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <PersonAvatar person={user} size={28} title={false} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium text-foreground">
-                {user?.display_name ?? ''}
+              <p className="truncate text-sm font-medium text-foreground">
+                {fullName(user)}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {user?.email ?? ''}
               </p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
               <User size={14} className="mr-2" />
               {t('Профиль')}
             </DropdownMenuItem>
@@ -338,8 +329,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      {profileOpen && <ProfileDialog open onOpenChange={setProfileOpen} />}
     </header>
   )
 }
