@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Tag, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -16,9 +17,9 @@ import {
   deleteLabel,
   type Label,
 } from '@/api/label'
+import { errorText } from '@/lib/errorMessages'
+import { t as translate } from '@/i18n'
 
-const errMsg = (err: unknown, fallback: string) =>
-  err instanceof Error ? err.message : fallback
 
 // A tidy default palette; a native colour input covers anything else.
 const PALETTE = [
@@ -53,13 +54,13 @@ function ColorPicker({
             value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-ring',
           )}
           style={{ background: c }}
-          aria-label={`Use ${c}`}
+          aria-label={translate('Цвет {{c}}', { c })}
         />
       ))}
       <label
         className="relative size-5 shrink-0 cursor-pointer rounded-full border border-border"
         style={{ background: value }}
-        title="Custom colour"
+        title={translate('Свой цвет')}
       >
         <input
           type="color"
@@ -81,6 +82,7 @@ function LabelRow({
   onSave: (data: { name: string; color: string }) => Promise<void>
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(label.name)
   const [color, setColor] = useState(label.color)
@@ -119,9 +121,14 @@ function LabelRow({
         <ColorPicker value={color} onChange={setColor} />
         <div className="ml-auto flex items-center gap-1">
           <Button size="sm" onClick={save} disabled={busy || !name.trim()}>
-            <Check size={14} /> Save
+            <Check size={14} /> {t('Сохранить')}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={t('Отмена')}
+            onClick={() => setEditing(false)}
+          >
             <X size={14} />
           </Button>
         </div>
@@ -138,18 +145,20 @@ function LabelRow({
       <span className="flex-1 truncate text-sm text-foreground">
         {label.name}
       </span>
-      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex items-center gap-1 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
         <button
           onClick={start}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          title="Edit"
+          title={t('Изменить')}
+          aria-label={t('Изменить')}
         >
           <Pencil size={14} />
         </button>
         <button
           onClick={onDelete}
           className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title="Delete"
+          title={t('Удалить')}
+          aria-label={t('Удалить')}
         >
           <Trash2 size={14} />
         </button>
@@ -159,6 +168,7 @@ function LabelRow({
 }
 
 export function ProjectLabelsPage() {
+  const { t } = useTranslation()
   const { projectId } = useParams()
   const workspace = useWorkspaceStore((s) => s.workspace)
   const slug = workspace?.slug
@@ -197,9 +207,9 @@ export function ProjectLabelsPage() {
       setLabels((prev) => [...prev, label])
       setNewName('')
       setNewColor(PALETTE[0])
-      toast.success('Label created')
+      toast.success(t('Метка создана'))
     } catch (err) {
-      toast.error(errMsg(err, 'Could not create label'))
+      toast.error(errorText(err, t('Не удалось создать метку')))
     } finally {
       setCreating(false)
     }
@@ -210,9 +220,9 @@ export function ProjectLabelsPage() {
     try {
       const updated = await updateLabel(slug, projectId, id, data)
       setLabels((prev) => prev.map((l) => (l.id === id ? updated : l)))
-      toast.success('Label updated')
+      toast.success(t('Метка сохранена'))
     } catch (err) {
-      toast.error(errMsg(err, 'Could not update label'))
+      toast.error(errorText(err, t('Не удалось сохранить метку')))
       throw err
     }
   }
@@ -222,26 +232,26 @@ export function ProjectLabelsPage() {
     try {
       await deleteLabel(slug, projectId, label.id)
       setLabels((prev) => prev.filter((l) => l.id !== label.id))
-      toast.success('Label deleted')
+      toast.success(t('Метка удалена'))
     } catch (err) {
-      toast.error(errMsg(err, 'Could not delete label'))
+      toast.error(errorText(err, t('Не удалось удалить метку')))
     }
   }
 
   return (
     <div>
-      <div className="flex h-12 items-center gap-2 border-b border-border px-6 text-sm font-medium">
+      <div className="flex h-12 items-center gap-2 border-b border-border px-4 text-sm font-medium md:px-6">
         <Tag size={16} />
-        Labels
+        {t('Метки')}
       </div>
 
-      <div className="max-w-3xl px-8 py-6">
+      <div className="max-w-3xl px-4 py-6 md:px-8">
         {/* Create */}
         <div className="mb-6 rounded-lg border border-border p-4">
-          <p className="mb-3 text-sm font-medium">Create a new label</p>
+          <p className="mb-3 text-sm font-medium">{t('Новая метка')}</p>
           <div className="flex flex-wrap items-center gap-3">
             <Input
-              placeholder="Label name"
+              placeholder={t('Название метки')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
@@ -256,7 +266,7 @@ export function ProjectLabelsPage() {
               className="ml-auto"
             >
               <Plus size={15} />
-              {creating ? 'Adding…' : 'Add label'}
+              {creating ? t('Добавляем…') : t('Добавить метку')}
             </Button>
           </div>
         </div>
@@ -271,8 +281,8 @@ export function ProjectLabelsPage() {
         ) : labels.length === 0 ? (
           <EmptyState
             icon={Tag}
-            title="No labels yet"
-            description="Create labels to categorise work items in this project."
+            title={t('Меток пока нет')}
+            description={t('Метки помогают группировать задачи проекта, например «Срочно» или «Отчётность».')}
           />
         ) : (
           <div className="space-y-2">
@@ -291,13 +301,13 @@ export function ProjectLabelsPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Delete label?"
+        title={t('Удалить метку?')}
         description={
           deleteTarget
-            ? `"${deleteTarget.name}" will be removed from all work items it's attached to.`
+            ? t('Метка «{{name}}» будет снята со всех задач.', { name: deleteTarget.name })
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel={t('Удалить')}
         onConfirm={() => deleteTarget && remove(deleteTarget)}
       />
     </div>

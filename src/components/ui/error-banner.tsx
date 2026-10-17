@@ -1,5 +1,6 @@
 import { AlertCircle, X } from 'lucide-react'
 import { getFriendlyMessage } from '@/lib/errorMessages'
+import { t } from '@/i18n'
 import { cn } from '@/lib/utils'
 
 interface ApiError {
@@ -32,7 +33,7 @@ export function ErrorBanner({ error, onDismiss, className }: ErrorBannerProps) {
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Dismiss error"
+          aria-label={t('Скрыть ошибку')}
           className="ml-auto shrink-0 opacity-60 hover:opacity-100 transition-opacity"
         >
           <X className="size-4" />

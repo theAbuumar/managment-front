@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Check, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/i18n'
 
 export interface MultiSelectOption {
   label: string
@@ -20,7 +21,7 @@ export function MultiSelect({
   options,
   value,
   onChange,
-  placeholder = 'Select…',
+  placeholder = t('Выберите…'),
   disabled,
   className,
 }: MultiSelectProps) {

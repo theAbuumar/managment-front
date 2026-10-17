@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,8 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { inviteMember } from '@/api/workspace'
+import { inviteMember, ROLE_LABELS, type AssignableRole } from '@/api/workspace'
+import { errorText } from '@/lib/errorMessages'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { toast } from 'sonner'
 
@@ -19,9 +21,11 @@ interface FormValues {
   members: { email: string; role: string }[]
 }
 
-const EMPTY = { email: '', role: '' }
+const EMPTY = { email: '', role: 'member' }
+const ROLES: AssignableRole[] = ['admin', 'member', 'guest']
 
 export function InviteMembersPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const workspace = useWorkspaceStore((s) => s.workspace)
 
@@ -44,12 +48,10 @@ export function InviteMembersPage() {
       await Promise.all(
         filled.map((m) => inviteMember(workspace.slug, m.email.trim(), m.role)),
       )
-      toast.success('Invitations sent!')
+      toast.success(t('Приглашения отправлены'))
       navigate('/')
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to send invitations',
-      )
+      toast.error(errorText(err, t('Не удалось отправить приглашения')))
     }
   }
 
@@ -58,11 +60,12 @@ export function InviteMembersPage() {
       <div className="w-full max-w-md">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">
-            Invite your teammates
+            {t('Пригласите коллег')}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Work in plane happens best with your team. Invite them now to use
-            Plane to its potential.
+            {t(
+              'Поручения работают, когда в системе есть исполнители и контролёры. Пригласите сотрудников сейчас или позже из настроек пространства.',
+            )}
           </p>
         </div>
 
@@ -71,16 +74,17 @@ export function InviteMembersPage() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-3"
           >
-            <div className="grid grid-cols-[1fr_160px] gap-3">
-              <span className="text-sm font-medium text-foreground">Email</span>
-              <span className="text-sm font-medium text-foreground">Role</span>
+            <div className="grid grid-cols-[1fr_140px] gap-3 sm:grid-cols-[1fr_160px]">
+              <span className="text-sm font-medium text-foreground">{t('Email')}</span>
+              <span className="text-sm font-medium text-foreground">{t('Роль')}</span>
             </div>
 
             {fields.map((f, i) => (
-              <div key={f.id} className="grid grid-cols-[1fr_160px] gap-3">
+              <div key={f.id} className="grid grid-cols-[1fr_140px] gap-3 sm:grid-cols-[1fr_160px]">
                 <Input
                   type="email"
-                  placeholder="colleague@company.com"
+                  aria-label={t('Email')}
+                  placeholder="ivanov@university.edu"
                   {...form.register(`members.${i}.email`)}
                 />
                 <Controller
@@ -89,12 +93,14 @@ export function InviteMembersPage() {
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue placeholder={t('Выберите роль')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="guest">Guest</SelectItem>
+                        {ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {ROLE_LABELS[r]()}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -108,7 +114,7 @@ export function InviteMembersPage() {
               className="flex w-fit items-center gap-1.5 text-sm text-primary hover:underline"
             >
               <Plus size={14} />
-              Add another
+              {t('Добавить ещё')}
             </button>
 
             <div className="mt-4 flex flex-col gap-3">
@@ -117,14 +123,14 @@ export function InviteMembersPage() {
                 className="w-full"
                 disabled={form.formState.isSubmitting}
               >
-                {form.formState.isSubmitting ? 'Sending…' : 'Continue'}
+                {form.formState.isSubmitting ? t('Отправляем…') : t('Продолжить')}
               </Button>
               <button
                 type="button"
                 onClick={() => navigate('/')}
                 className="text-center text-sm font-medium text-foreground hover:underline"
               >
-                I'll do it later
+                {t('Сделаю позже')}
               </button>
             </div>
           </form>

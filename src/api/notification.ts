@@ -2,18 +2,44 @@ import client from './client'
 
 // In-app notifications live in the backend `notifications` module, mounted at
 // /workspaces/:slug/notifications and scoped to the requesting member. Rows are
-// written inside the same transaction as the triggering mutation:
-//   - `issue_assigned` — you were assigned to a work item (incl. on creation),
-//   - `comment_added`  — someone commented on a work item you're involved in,
-//   - `mentioned`      — you were @-mentioned in a comment.
-// Telegram / email delivery is a separate, automatic out-of-band fan-out on the
-// backend; the frontend never triggers it directly — creating the issue does.
-export type NotificationType = 'issue_assigned' | 'comment_added' | 'mentioned'
+// written inside the same transaction as the triggering mutation; Telegram /
+// email delivery is a separate fan-out on the backend. Every type of ADR-020:
+export type NotificationType =
+  | 'issue_assigned'
+  | 'comment_added'
+  | 'mentioned'
+  | 'state_changed'
+  | 'review_requested'
+  | 'review_approved'
+  | 'review_returned'
+  | 'acknowledged'
+  | 'due_soon'
+  | 'overdue'
+  | 'escalated'
+  | 'deadline_change_requested'
+  | 'deadline_change_decided'
+  | 'invite_received'
+  | 'report_ready'
+  | 'digest'
 
 export interface NotificationActor {
   id: string
   display_name: string
+  last_name?: string | null
+  first_name?: string | null
+  middle_name?: string | null
   avatar_url: string | null
+}
+
+/** Enough of the issue to render the row and open it. */
+export interface NotificationIssue {
+  id: string
+  title: string
+  sequence_id: number
+  project_id: string
+  kind: 'task' | 'assignment'
+  due_date: string | null
+  project: { identifier: string; name: string }
 }
 
 export interface AppNotification {
@@ -28,6 +54,9 @@ export interface AppNotification {
   read_at: string | null
   created_at: string
   actor: NotificationActor
+  issue?: NotificationIssue | null
+  /** Only on deadline_change_decided. */
+  details?: { approved: boolean; new_due_date: string } | null
 }
 
 export interface NotificationPage {
@@ -39,18 +68,25 @@ export interface NotificationPage {
 interface ListParams {
   // Filter by read state; omit for all. Serialized as ?read=true|false.
   read?: boolean
+  // Only these types (sent comma-separated).
+  type?: NotificationType[]
   cursor?: string
   limit?: number
 }
 
 export const getNotifications = (slug: string, params?: ListParams) =>
   client.get<unknown, NotificationPage>(`/workspaces/${slug}/notifications/`, {
-    params,
+    params: { ...params, type: params?.type?.length ? params.type.join(',') : undefined },
   })
 
 export const markNotificationRead = (slug: string, id: string) =>
   client.post<unknown, AppNotification>(
     `/workspaces/${slug}/notifications/${id}/read`,
+  )
+
+export const markNotificationUnread = (slug: string, id: string) =>
+  client.post<unknown, AppNotification>(
+    `/workspaces/${slug}/notifications/${id}/unread`,
   )
 
 export const markAllNotificationsRead = (slug: string) =>

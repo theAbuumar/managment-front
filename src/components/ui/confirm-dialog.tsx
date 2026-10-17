@@ -8,6 +8,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { t } from '@/i18n'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -25,8 +26,8 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = t('Подтвердить'),
+  cancelLabel = t('Отмена'),
   variant = 'destructive',
   onConfirm,
 }: ConfirmDialogProps) {
