@@ -16,6 +16,7 @@ import {
   Star,
   UserCheck,
   FileText,
+  Paperclip,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -51,6 +52,8 @@ import { getLabels, type Label } from '@/api/label'
 import { getComments, createComment, deleteComment, type Comment } from '@/api/comment'
 import { getActivity, type Activity } from '@/api/activity'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
+import { getAttachments, type Attachment } from '@/api/attachment'
+import { AttachmentsSection } from '@/features/work-items/attachments/AttachmentsSection'
 import {
   getReviews,
   getDeadlineRequests,
@@ -135,6 +138,7 @@ export function IssueDetailPanel({
   const [activity, setActivity] = useState<Activity[]>([])
   const [reviews, setReviews] = useState<IssueReview[]>([])
   const [deadlineRequests, setDeadlineRequests] = useState<DeadlineRequest[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const [watching, setWatching] = useState(false)
   const [feedLoading, setFeedLoading] = useState(true)
 
@@ -146,14 +150,16 @@ export function IssueDetailPanel({
   const issueId = issue?.id
 
   async function loadControl(id: string) {
-    const [rv, dr, ws] = await Promise.all([
+    const [rv, dr, ws, att] = await Promise.all([
       getReviews(slug, projectId, id).catch(() => []),
       getDeadlineRequests(slug, projectId, id).catch(() => []),
       getWatchers(slug, projectId, id).catch(() => []),
+      getAttachments(slug, projectId, id).catch(() => []),
     ])
     setReviews(rv)
     setDeadlineRequests(dr)
     setWatching(ws.some((w) => w.user_id === currentUserId))
+    setAttachments(att)
   }
 
   // (Re)load everything whenever a different issue is opened.
@@ -510,6 +516,17 @@ export function IssueDetailPanel({
               />
             )}
 
+            <AttachmentsSection
+              slug={slug}
+              projectId={projectId}
+              issueId={issue.id}
+              attachments={attachments}
+              loading={feedLoading}
+              currentUserId={currentUserId}
+              isAdmin={myRole === 'owner' || myRole === 'admin'}
+              onChanged={refreshFeed}
+            />
+
             {/* Comments · history · reviews · deadline changes */}
             <div className="flex-1 p-4">
               <Tabs defaultValue="comments">
@@ -637,6 +654,26 @@ export function IssueDetailPanel({
                           </span>
                         </div>
                         {r.report && <p className="mt-2 whitespace-pre-wrap text-sm">{r.report}</p>}
+                        {r.attachments.length > 0 && (
+                          <ul className="mt-2 flex flex-wrap gap-1.5">
+                            {r.attachments.map((f) => {
+                              const url = attachments.find((a) => a.id === f.id)?.download_url
+                              return (
+                                <li key={f.id}>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex max-w-[16rem] items-center gap-1 rounded border border-border px-2 py-0.5 text-xs hover:bg-muted"
+                                  >
+                                    <Paperclip size={11} className="shrink-0" />
+                                    <span className="truncate">{f.file_name}</span>
+                                  </a>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        )}
                         {r.decided_by && (
                           <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
                             {shortName(r.decided_by)} · {r.decided_at ? dateTime(r.decided_at) : ''}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Send, Undo2, CalendarClock } from 'lucide-react'
@@ -15,8 +15,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { DatePicker } from '@/components/ui/date-picker'
 import { errorText } from '@/lib/errorMessages'
 import { dateInputToIso, isoToDateInput, longDate } from '@/lib/dates'
-import { submitReview, returnReview, requestDeadlineChange } from '@/api/control'
+import { submitReview, returnReview, requestDeadlineChange, getControlSettings } from '@/api/control'
+import { getAttachments, formatBytes, type Attachment } from '@/api/attachment'
 import type { Issue } from '@/api/issue'
+import { cn } from '@/lib/utils'
+import { shortName } from '@/lib/people'
+import { FileDropzone } from '@/features/work-items/attachments/FileDropzone'
+import { useUploads } from '@/features/work-items/attachments/useUploads'
 
 interface IssueRef {
   slug: string
@@ -24,7 +29,8 @@ interface IssueRef {
   issue: Issue
 }
 
-// Ф5: hand the work in for review — report text (files go to "Вложения").
+// Ф5: hand the work in for review — report text plus files (Ф4 4.F5): new
+// uploads, or files already attached to the task that are not in a report yet.
 export function SubmitReviewDialog({
   open,
   onOpenChange,
@@ -45,15 +51,65 @@ export function SubmitReviewDialog({
   const { t } = useTranslation()
   const [report, setReport] = useState('')
   const [busy, setBusy] = useState(false)
+  // Files of the task not handed in yet; `picked` are the ones going with this report.
+  const [available, setAvailable] = useState<Attachment[]>([])
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [settingsRequire, setSettingsRequire] = useState(false)
+  const uploads = useUploads(slug, projectId, issue.id)
+  const mustWrite = requireReport || settingsRequire
+
+  // On open: the workspace rule for a mandatory report and the task's free files.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    Promise.all([
+      getControlSettings(slug).catch(() => null),
+      getAttachments(slug, projectId, issue.id).catch(() => [] as Attachment[]),
+    ]).then(([settings, files]) => {
+      if (cancelled) return
+      setSettingsRequire(!!settings?.require_report)
+      setAvailable(files.filter((f) => !f.review_id))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, slug, projectId, issue.id])
+
+  function toggle(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function addFiles(files: File[]) {
+    const done = await uploads.upload(files)
+    if (done.length) {
+      setAvailable((prev) => [...done, ...prev])
+      setPicked((prev) => new Set([...prev, ...done.map((d) => d.id)]))
+    }
+  }
+
+  function close(v: boolean) {
+    if (!v) {
+      setReport('')
+      setPicked(new Set())
+    }
+    onOpenChange(v)
+  }
 
   async function submit() {
     setBusy(true)
     try {
-      const updated = await submitReview(slug, projectId, issue.id, { report: report.trim() || null })
+      const updated = await submitReview(slug, projectId, issue.id, {
+        report: report.trim() || null,
+        attachment_ids: [...picked],
+      })
       toast.success(t('Отправлено на проверку'))
-      setReport('')
       onDone(updated)
-      onOpenChange(false)
+      close(false)
     } catch (err) {
       toast.error(errorText(err))
     } finally {
@@ -62,8 +118,8 @@ export function SubmitReviewDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send size={18} className="text-primary" />
@@ -71,8 +127,8 @@ export function SubmitReviewDialog({
           </DialogTitle>
           <DialogDescription>
             {issue.controller
-              ? t('Результат примет или вернёт контролёр: {{name}}.', {
-                  name: issue.controller.display_name,
+              ? t('Результат примет или вернёт контролёр: {{name}}', {
+                  name: shortName(issue.controller),
                 })
               : t('Результат проверит автор поручения.')}
           </DialogDescription>
@@ -83,7 +139,7 @@ export function SubmitReviewDialog({
         <div className="space-y-1.5">
           <label className="text-sm font-medium">
             {t('Отчёт об исполнении')}
-            {requireReport ? ' *' : ''}
+            {mustWrite ? ' *' : ''}
           </label>
           <Textarea
             autoFocus
@@ -92,15 +148,51 @@ export function SubmitReviewDialog({
             onChange={(e) => setReport(e.target.value)}
             placeholder={t('Что сделано, где результат, на что обратить внимание…')}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">{t('Файлы отчёта')}</p>
+          {available.length > 0 && (
+            <ul className="space-y-1">
+              {available.map((f) => (
+                <li key={f.id}>
+                  <label
+                    className={cn(
+                      'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors',
+                      picked.has(f.id) ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={picked.has(f.id)}
+                      onChange={() => toggle(f.id)}
+                      className="accent-primary"
+                    />
+                    <span className="min-w-0 flex-1 truncate">{f.file_name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatBytes(f.file_size)} · {shortName(f.uploaded_by)}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <FileDropzone
+            onFiles={addFiles}
+            uploads={uploads.items}
+            compact
+            hint={t('Добавить файлы: перетащите или нажмите')}
+          />
           <p className="text-xs text-muted-foreground">
-            {t('Файлы отчёта прикрепите в разделе «Вложения» задачи.')}
+            {t('Новые файлы сразу попадают во вложения задачи и отмечаются как часть отчёта.')}
           </p>
         </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => close(false)}>
             {t('Отмена')}
           </Button>
-          <Button onClick={submit} disabled={busy || (requireReport && !report.trim())}>
+          <Button onClick={submit} disabled={busy || uploads.busy || (mustWrite && !report.trim())}>
             {busy ? t('Отправляем…') : t('Отправить')}
           </Button>
         </DialogFooter>
