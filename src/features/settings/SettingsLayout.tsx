@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Settings2, Users, Network, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Settings2, Users, Network, ShieldCheck, History } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { enabled, type FeatureFlag } from '@/lib/features'
@@ -19,6 +19,7 @@ const ADMIN: NavItem[] = [
   { label: 'Сотрудники', icon: Users, to: 'members' },
   { label: 'Оргструктура', icon: Network, to: 'structure', feature: 'orgStructure' },
   { label: 'Контроль исполнения', icon: ShieldCheck, to: 'control' },
+  { label: 'Журнал аудита', icon: History, to: 'audit' },
 ]
 
 function NavSection({ title, items }: { title: string; items: NavItem[] }) {

@@ -11,6 +11,7 @@ import { MembersPage } from '@/features/settings/MembersPage'
 import { GeneralPage } from '@/features/settings/GeneralPage'
 import { OrgStructurePage } from '@/features/settings/OrgStructurePage'
 import { ControlSettingsPage } from '@/features/settings/ControlSettingsPage'
+import { AuditLogPage } from '@/features/settings/AuditLogPage'
 import { ProjectsPage } from '@/features/projects/ProjectsPage'
 import { ProjectSettingsLayout } from '@/features/projects/ProjectSettingsLayout'
 import { ProjectGeneralPage } from '@/features/projects/ProjectGeneralPage'
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
           { path: 'members', element: <MembersPage /> },
           { path: 'structure', element: <OrgStructurePage /> },
           { path: 'control', element: <ControlSettingsPage /> },
+          { path: 'audit', element: <AuditLogPage /> },
         ],
       },
       {
