@@ -15,7 +15,7 @@ interface NavItem {
 
 const ADMIN: NavItem[] = [
   { label: 'Общие', icon: Settings2, to: 'general' },
-  { label: 'Участники', icon: Users, to: 'members' },
+  { label: 'Сотрудники', icon: Users, to: 'members' },
   { label: 'Оргструктура', icon: Network, to: 'structure', feature: 'orgStructure' },
 ]
 

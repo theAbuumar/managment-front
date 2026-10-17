@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -20,65 +21,91 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { inviteExistingUser, type AssignableRole } from '@/api/workspace'
+import { ApiError } from '@/api/client'
+import { inviteExistingUser, inviteMember, ROLE_LABELS, type AssignableRole } from '@/api/workspace'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { errorText } from '@/lib/errorMessages'
+
+const CHANNELS: Record<string, () => string> = {
+  email: () => 'email',
+  telegram: () => 'Telegram',
+}
 
 export function AddMemberDialog({ onAdded }: { onAdded: () => void }) {
+  const { t } = useTranslation()
   const workspace = useWorkspaceStore((s) => s.workspace)
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<AssignableRole>('member')
   const [busy, setBusy] = useState(false)
 
+  function reset() {
+    setEmail('')
+    setRole('member')
+  }
+
   async function submit() {
     const trimmed = email.trim()
     if (!workspace || !trimmed) return
     setBusy(true)
     try {
-      const { delivered_to } = await inviteExistingUser(workspace.slug, {
-        email: trimmed,
-        role,
-      })
-      const via = delivered_to.length ? ` via ${delivered_to.join(' & ')}` : ''
-      toast.success(`Invitation sent to ${trimmed}${via}`, {
-        description: 'It will appear in their invitations inbox.',
-      })
-      setEmail('')
-      setRole('member')
+      try {
+        // Already registered → an invitation in their inbox (+ email / Telegram).
+        const { delivered_to } = await inviteExistingUser(workspace.slug, { email: trimmed, role })
+        const via = delivered_to.map((c) => CHANNELS[c]?.() ?? c).join(', ')
+        toast.success(t('Приглашение отправлено: {{email}}', { email: trimmed }), {
+          description: via
+            ? t('Появится во входящих приглашениях, продублировано: {{via}}.', { via })
+            : t('Появится во входящих приглашениях сотрудника.'),
+        })
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 404)) throw err
+        // No account yet → an email with a sign-up link.
+        await inviteMember(workspace.slug, trimmed, role)
+        toast.success(t('Приглашение отправлено на {{email}}', { email: trimmed }), {
+          description: t('Сотрудник ещё не зарегистрирован — по ссылке из письма он создаст аккаунт и войдёт в пространство.'),
+        })
+      }
+      reset()
       setOpen(false)
       onAdded()
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to invite member',
-      )
+      toast.error(errorText(err, t('Не удалось отправить приглашение')))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset()
+        setOpen(v)
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5">
-          <UserPlus size={14} /> Add member
+          <UserPlus size={14} /> {t('Пригласить сотрудника')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invite member</DialogTitle>
+          <DialogTitle>{t('Пригласить сотрудника')}</DialogTitle>
           <DialogDescription>
-            Invite an existing user by email. They'll get the invitation in
-            their in-app inbox (and by email or Telegram where available).
+            {t(
+              'Если у сотрудника уже есть аккаунт, приглашение придёт во входящие (и в Telegram, если он привязан). Если нет — на почту придёт ссылка для регистрации.',
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-email">Email</Label>
+            <Label htmlFor="invite-email">{t('Email')}</Label>
             <Input
               id="invite-email"
               type="email"
               autoFocus
-              placeholder="colleague@company.com"
+              placeholder="ivanov@university.tj"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => {
@@ -87,28 +114,30 @@ export function AddMemberDialog({ onAdded }: { onAdded: () => void }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-role">Role</Label>
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v as AssignableRole)}
-            >
+            <Label htmlFor="invite-role">{t('Роль доступа')}</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as AssignableRole)}>
               <SelectTrigger id="invite-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="member">Member</SelectItem>
-                <SelectItem value="guest">Guest</SelectItem>
+                {(['admin', 'member', 'guest'] as AssignableRole[]).map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABELS[r]()}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {t('Подразделение и должность назначаются в списке сотрудников после вступления.')}
+            </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Отмена')}
           </Button>
           <Button onClick={submit} disabled={busy || !email.trim()}>
-            {busy ? 'Sending…' : 'Send invite'}
+            {busy ? t('Отправляем…') : t('Отправить приглашение')}
           </Button>
         </DialogFooter>
       </DialogContent>

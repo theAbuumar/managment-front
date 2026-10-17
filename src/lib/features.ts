@@ -9,7 +9,7 @@ export const FEATURES = {
   modules: false,
   analytics: false,
   ai: false,
-  orgStructure: false,
+  orgStructure: true,
   projectStates: false,
   projectMembers: false,
 } as const

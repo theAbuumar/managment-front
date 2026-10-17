@@ -9,6 +9,7 @@ import { InviteMembersPage } from '@/features/onboarding/InviteMembersPage'
 import { SettingsLayout } from '@/features/settings/SettingsLayout'
 import { MembersPage } from '@/features/settings/MembersPage'
 import { GeneralPage } from '@/features/settings/GeneralPage'
+import { OrgStructurePage } from '@/features/settings/OrgStructurePage'
 import { ProjectsPage } from '@/features/projects/ProjectsPage'
 import { ProjectSettingsLayout } from '@/features/projects/ProjectSettingsLayout'
 import { ProjectGeneralPage } from '@/features/projects/ProjectGeneralPage'
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="general" replace /> },
           { path: 'general', element: <GeneralPage /> },
           { path: 'members', element: <MembersPage /> },
+          { path: 'structure', element: <OrgStructurePage /> },
         ],
       },
       {
