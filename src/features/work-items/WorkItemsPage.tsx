@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LayoutGrid, List, AlertCircle, Plus, Send } from 'lucide-react'
@@ -13,10 +13,13 @@ import { ApiError } from '@/api/client'
 import { errorText } from '@/lib/errorMessages'
 import { deadlineInfo } from '@/lib/deadline'
 import { t as translate } from '@/i18n'
+import { isOwnEcho, useRealtime } from '@/lib/realtime'
+import { shortName } from '@/lib/people'
 import { getProject, type Project } from '@/api/project'
 import { getStates, type State } from '@/api/state'
 import {
   getAllIssues,
+  getIssue,
   createIssue,
   updateIssue,
   deleteIssue,
@@ -87,6 +90,72 @@ export function WorkItemsPage() {
   // anywhere stay in sync with a single source of truth.
   const selectedIssue = issues.find((i) => i.id === selectedId) ?? null
 
+  // Live board (8.F1): changes made by others — in another browser, in Telegram,
+  // by the reminder scheduler — arrive over SSE; the touched issue is re-read
+  // and put in place. `resync` (missed events) reloads the whole board.
+  const [reloadTick, setReloadTick] = useState(0)
+  const refetchTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  useEffect(() => {
+    const timers = refetchTimers.current
+    return () => timers.forEach((timer) => clearTimeout(timer))
+  }, [])
+
+  function upsert(issue: Issue) {
+    setIssues((prev) => {
+      const next = prev.some((i) => i.id === issue.id)
+        ? prev.map((i) => (i.id === issue.id ? issue : i))
+        : [...prev, issue]
+      return [...next].sort((a, b) => a.sort_order - b.sort_order)
+    })
+  }
+
+  function refetchSoon(issueId: string) {
+    const timers = refetchTimers.current
+    clearTimeout(timers.get(issueId))
+    timers.set(
+      issueId,
+      setTimeout(async () => {
+        timers.delete(issueId)
+        if (!slug || !projectId) return
+        try {
+          upsert(await getIssue(slug, projectId, issueId))
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            setIssues((prev) => prev.filter((i) => i.id !== issueId))
+          }
+        }
+      }, 250),
+    )
+  }
+
+  useRealtime((message) => {
+    if (message.type === 'resync') {
+      setReloadTick((n) => n + 1)
+      return
+    }
+    const id = message.issue_id
+    if (message.project_id !== projectId || !id || message.type.startsWith('comment.')) return
+    if (isOwnEcho(message)) return
+    const byOther = message.actor && message.actor.id !== me
+    if (message.type === 'issue.deleted') {
+      setIssues((prev) => prev.filter((i) => i.id !== id))
+      if (id === selectedId) {
+        if (byOther) {
+          toast.info(t('Задачу удалил(а) {{name}}', { name: shortName(message.actor) }))
+        }
+        setSelectedId(null)
+      }
+      return
+    }
+    refetchSoon(id)
+    if (id === selectedId && byOther) {
+      // One toast per issue at a time: a burst of edits does not stack up.
+      toast.info(t('Задачу изменил(а) {{name}}', { name: shortName(message.actor) }), {
+        id: `changed-${id}`,
+      })
+    }
+  })
+
   useEffect(() => {
     if (!slug || !projectId) return
     let cancelled = false
@@ -114,7 +183,7 @@ export function WorkItemsPage() {
     return () => {
       cancelled = true
     }
-  }, [slug, projectId, t])
+  }, [slug, projectId, t, reloadTick])
 
   async function handleCreate(stateId: string, title: string) {
     if (!slug || !projectId) return

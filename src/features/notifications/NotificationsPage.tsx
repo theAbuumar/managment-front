@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { cn } from '@/lib/utils'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { useRealtime } from '@/lib/realtime'
 import { useNotificationStore } from '@/stores/notificationStore'
 import {
   getNotifications,
@@ -196,6 +197,25 @@ export function NotificationsPage() {
       cancelled = true
     }
   }, [slug, filter, topic, setUnreadCount, t]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live (8.F1): new notifications slide in on top, without a reload spinner.
+  useRealtime((message) => {
+    if (message.type !== 'notification.created' && message.type !== 'resync') return
+    if (!slug) return
+    void getNotifications(slug, {
+      read: filter === 'unread' ? false : undefined,
+      type: types,
+      limit: PAGE_SIZE,
+    })
+      .then((res) => {
+        setItems((prev) => {
+          const known = new Set(prev.map((it) => it.id))
+          return [...res.data.filter((it) => !known.has(it.id)), ...prev]
+        })
+        setUnreadCount(res.unread_count)
+      })
+      .catch(() => {})
+  })
 
   // Append the next page (user-triggered, so setState here is fine).
   async function loadMore() {

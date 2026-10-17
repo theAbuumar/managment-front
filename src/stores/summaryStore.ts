@@ -1,14 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { create } from 'zustand'
 import { getMySummary, type MySummary } from '@/api/control'
 import { onApiMutation } from '@/api/client'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { useRealtime, useRealtimeStatus } from '@/lib/realtime'
 
-// "My work" counters for the sidebar (Ф5 5.F6), from one COUNT-only request.
-// AppShell keeps them fresh with useSummarySync(); the sidebar only reads.
+// "My work" counters for the sidebar (Ф5 5.F6) and the bell's unread count, from
+// one COUNT-only request. AppShell keeps them fresh with useSummarySync(); the
+// sidebar and the Topbar only read.
 
+/** Fallback polling, only while the live stream (8.F1) is down. */
 const POLL_MS = 60_000
 
 interface SummaryState {
@@ -32,12 +35,18 @@ export function useMySummary(): MySummary | null {
 
 /**
  * Load the counters and keep them current: on workspace switch, on navigation,
- * every minute, when the tab regains focus, and shortly after any write to the
- * API (a task created, handed in, accepted…).
+ * on every live event (a notification, a task changed by someone else), when the
+ * tab regains focus, shortly after any own write to the API — and every minute
+ * only while the live stream is down.
  */
 export function useSummarySync() {
   const slug = useWorkspaceStore((s) => s.workspace?.slug)
   const { pathname } = useLocation()
+  // The effect's debounced reload, also triggered by live events.
+  const reloadSoon = useRef<(() => void) | null>(null)
+  useRealtime((m) => {
+    if (!m.type.startsWith('comment.')) reloadSoon.current?.()
+  })
 
   useEffect(() => {
     if (!slug) return
@@ -57,14 +66,18 @@ export function useSummarySync() {
       timer = setTimeout(load, 400)
     }
 
+    reloadSoon.current = soon
     void load()
-    const poll = setInterval(load, POLL_MS)
+    const poll = setInterval(() => {
+      if (!useRealtimeStatus.getState().connected) void load()
+    }, POLL_MS)
     const unsubscribe = onApiMutation((url) => {
       if (url.includes(`/workspaces/${slug}/`)) soon()
     })
     window.addEventListener('focus', soon)
     return () => {
       cancelled = true
+      reloadSoon.current = null
       clearTimeout(timer)
       clearInterval(poll)
       unsubscribe()

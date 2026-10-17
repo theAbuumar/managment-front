@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
@@ -65,6 +65,7 @@ import {
   type DeadlineRequest,
 } from '@/api/control'
 import { ControlBlock } from './control/ControlBlock'
+import { isOwnEcho, useRealtime } from '@/lib/realtime'
 import { DistributionBlock } from './control/DistributionBlock'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
@@ -203,18 +204,45 @@ export function IssueDetailPanel({
 
   // After any change: reload history, comments, control data — and the issue
   // itself, since control actions (approved deadline moves…) change it server-side.
-  async function refreshFeed() {
+  // Live events skip the issue: the board re-reads it and passes it down.
+  async function refreshFeed({ withIssue = true }: { withIssue?: boolean } = {}) {
     if (!issueId) return
     const [act, cs, fresh] = await Promise.all([
       getActivity(slug, projectId, issueId).catch(() => null),
       getComments(slug, projectId, issueId).catch(() => null),
-      getIssue(slug, projectId, issueId).catch(() => null),
+      withIssue ? getIssue(slug, projectId, issueId).catch(() => null) : null,
     ])
     if (act) setActivity(act.data)
     if (cs) setComments(cs)
     if (fresh) onUpdated(fresh)
     await loadControl(issueId)
   }
+
+  // Live panel (8.F1): someone else commented, handed in, accepted… — reload
+  // the feed and the control block of the open issue.
+  const feedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => clearTimeout(feedTimer.current ?? undefined), [])
+  useRealtime((message) => {
+    if (message.type === 'resync' || message.issue_id !== issueId || isOwnEcho(message)) return
+    clearTimeout(feedTimer.current ?? undefined)
+    feedTimer.current = setTimeout(() => void refreshFeed({ withIssue: false }), 300)
+  })
+
+  // Text fields follow edits made elsewhere unless the user is typing in them.
+  const synced = useRef({ title: '', description: '', basis: '' })
+  useEffect(() => {
+    if (!issue) return
+    const prev = synced.current
+    const next = {
+      title: issue.title,
+      description: issue.description ?? '',
+      basis: issue.basis ?? '',
+    }
+    setTitleDraft((d) => (d === prev.title ? next.title : d))
+    setDescDraft((d) => (d === prev.description ? next.description : d))
+    setBasisDraft((d) => (d === prev.basis ? next.basis : d))
+    synced.current = next
+  }, [issue?.title, issue?.description, issue?.basis]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Any issue mutation funnels through here: push the fresh issue to the board
   // and refresh the history.

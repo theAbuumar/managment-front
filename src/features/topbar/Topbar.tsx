@@ -35,13 +35,9 @@ import {
   getWorkspaceMembers,
   type WorkspaceData,
 } from '@/api/workspace'
-import { getNotifications } from '@/api/notification'
 import { pluralize } from '@/lib/plural'
 import { fullName } from '@/lib/people'
 import { t as translate } from '@/i18n'
-
-// How often the bell re-checks the unread count while the app is open.
-const NOTIFICATION_POLL_MS = 45_000
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -73,7 +69,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
   const unreadCount = useNotificationStore((s) => s.unreadCount)
-  const setUnreadCount = useNotificationStore((s) => s.setUnreadCount)
 
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [meta, setMeta] = useState<Record<string, WsMeta>>({})
@@ -106,27 +101,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       cancelled = true
     }
   }, [switcherOpen, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep the bell's unread badge fresh: poll the count on mount and on an
-  // interval while a workspace is selected. The NotificationsPage keeps the same
-  // store value in sync as the user reads items, so the badge updates instantly.
-  const slug = workspace?.slug
-  useEffect(() => {
-    if (!slug) return
-    let cancelled = false
-    const refresh = async () => {
-      const res = await getNotifications(slug, { read: false, limit: 1 }).catch(
-        () => null,
-      )
-      if (!cancelled && res) setUnreadCount(res.unread_count)
-    }
-    void refresh()
-    const id = setInterval(refresh, NOTIFICATION_POLL_MS)
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [slug, setUnreadCount])
 
   function switchWorkspace(ws: WorkspaceData) {
     setWorkspace(ws)

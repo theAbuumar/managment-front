@@ -5,6 +5,8 @@ import { SidebarPanel } from '@/features/sidebar/SidebarPanel'
 import { Topbar } from '@/features/topbar/Topbar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useSummarySync } from '@/stores/summaryStore'
+import { useRealtimeConnection } from '@/lib/realtime'
+import { useNotificationToasts } from '@/features/notifications/useNotificationToasts'
 
 function ActivePanel({ className }: { className?: string }) {
   return <SidebarPanel className={className} />
@@ -12,7 +14,9 @@ function ActivePanel({ className }: { className?: string }) {
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  useRealtimeConnection()
   useSummarySync()
+  useNotificationToasts()
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background" data-print="page">
