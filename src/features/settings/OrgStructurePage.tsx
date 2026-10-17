@@ -14,7 +14,10 @@ import {
   Building2,
   UserPlus,
   X,
+  BarChart3,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { FEATURES } from '@/lib/features'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -521,7 +524,18 @@ function DepartmentDetails({
           ))}
         </div>
       )}
-      <h2 className="text-lg font-semibold">{d.name}</h2>
+      <div className="flex flex-wrap items-start gap-2">
+        <h2 className="min-w-0 flex-1 text-lg font-semibold">{d.name}</h2>
+        {FEATURES.analytics && (
+          <Link
+            to={`/departments/${d.id}`}
+            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-primary hover:bg-accent"
+          >
+            <BarChart3 size={13} />
+            {t('Страница подразделения')}
+          </Link>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
         {pluralize(staff.length, [t('сотрудник'), t('сотрудника'), t('сотрудников')])}
         {children.length > 0 && ` · ${pluralize(children.length, [t('вложенное подразделение'), t('вложенных подразделения'), t('вложенных подразделений')])}`}

@@ -111,7 +111,7 @@ function StateChip({ states, value, onChange }: { states: State[]; value: string
 }
 
 // --- Priority chip ---------------------------------------------------------
-function PriorityChip({ value, onChange }: { value: IssuePriorityValue; onChange: (v: IssuePriorityValue) => void }) {
+export function PriorityChip({ value, onChange }: { value: IssuePriorityValue; onChange: (v: IssuePriorityValue) => void }) {
   const current = PRIORITY_CONFIG[value]
   const CurIcon = current.icon
   return (
@@ -219,7 +219,7 @@ function AssigneesChip({
 }
 
 // --- Controller chip (single) ----------------------------------------------
-function ControllerChip({ members, value, onChange }: { members: WorkspaceMember[]; value: string; onChange: (id: string) => void }) {
+export function ControllerChip({ members, value, onChange }: { members: WorkspaceMember[]; value: string; onChange: (id: string) => void }) {
   const { t } = useTranslation()
   const [q, setQ] = useState('')
   const current = members.find((m) => m.user_id === value)
@@ -248,7 +248,7 @@ function ControllerChip({ members, value, onChange }: { members: WorkspaceMember
 }
 
 // --- Due date chip ---------------------------------------------------------
-function DueDateChip({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function DueDateChip({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation()
   const label = value
     ? new Date(`${value}T12:00:00Z`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })

@@ -33,6 +33,51 @@ export interface IssueLabelLink {
   }
 }
 
+/** Short project info carried by rows of the workspace-wide list (7.B1). */
+export interface ProjectBrief {
+  id: string
+  name: string
+  identifier: string
+  icon: string | null
+  color: string | null
+}
+
+export interface PersonBrief {
+  id: string
+  display_name: string
+  last_name: string | null
+  first_name: string | null
+  middle_name: string | null
+  avatar_url: string | null
+}
+
+/** One department's child of a distribution (6.B2). */
+export interface DistributionItem {
+  issue_id: string
+  sequence_id: number
+  title: string
+  department: { id: string; name: string; short_name: string | null } | null
+  assignee: PersonBrief | null
+  state: { id: string; name: string; group: StateGroup; color: string }
+  due_date: string | null
+  completed_at: string | null
+  overdue: boolean
+  completed_late: boolean
+}
+
+/** Progress of a distribution, on its parent only (6.B2). */
+export interface DistributionProgress {
+  total: number
+  completed: number
+  cancelled: number
+  review: number
+  open: number
+  overdue: number
+  /** Every child is done and the parent is still open: offer closing it. */
+  ready_to_close: boolean
+  items: DistributionItem[]
+}
+
 export interface Issue {
   id: string
   workspace_id: string
@@ -53,6 +98,15 @@ export interface Issue {
   requires_review: boolean
   /** Основание: "Протокол ректората №5 от 12.10.2026". */
   basis: string | null
+  /** Parent of a distribution to departments (6.B1). */
+  is_distribution?: boolean
+  /** Department a distribution child is addressed to. */
+  department_id?: string | null
+  department?: { id: string; name: string; short_name: string | null } | null
+  /** Present in the workspace-wide list (7.B1). */
+  project?: ProjectBrief
+  /** Present on a distribution parent fetched by id (6.B2). */
+  distribution?: DistributionProgress
   controller?: UserBrief | null
   state?: { id: string; name: string; group: StateGroup; color: string }
   /** watchers; deadline_requests = approved deadline moves ("переносы"). */
@@ -91,6 +145,9 @@ export interface ListParams {
   kind?: IssueKind
   controller?: string // user id or 'me'
   watcher?: string // user id or 'me'
+  // Who accepts the work: the controller, or the author when there is none.
+  reviewer?: string // user id or 'me'
+  state_group?: StateGroup | StateGroup[]
   // Execution-control filters, computed in the workspace time zone.
   overdue?: 'true' | 'false'
   due_within?: number
@@ -101,6 +158,8 @@ export interface ListParams {
   due_after?: string
   created_before?: string
   created_after?: string
+  completed_before?: string
+  completed_after?: string
   // Ask the backend to bucket the results server-side instead of returning a flat page.
   group_by?: 'state' | 'priority' | 'assignee'
 }
@@ -234,10 +293,82 @@ export async function getAllIssues(
   const all: Issue[] = []
   let cursor: string | undefined
   for (let page = 0; page < maxPages; page++) {
-    const res = await getIssues(slug, projectId, { ...params, limit: 100, cursor })
+    const res = await getIssues(slug, projectId, {
+      ...params,
+      limit: 100,
+      cursor,
+    })
     all.push(...res.data)
     if (!res.next_cursor) break
     cursor = res.next_cursor
   }
   return all
 }
+
+// ─── Workspace-wide list (7.B1) ───────────────────────────────────────────────
+
+export interface WorkspaceListParams extends Omit<ListParams, 'group_by'> {
+  project?: string | string[]
+  /** A department includes its sub-departments. */
+  department?: string | string[]
+}
+
+// Repeated keys (`state_group=a&state_group=b`) are what the backend expects for lists.
+const repeatParams = { paramsSerializer: { indexes: null } }
+
+/** One page of issues across every project the user can see. Rows carry `project`. */
+export const getWorkspaceIssues = (
+  slug: string,
+  params?: WorkspaceListParams,
+) =>
+  client.get<unknown, PagedIssues>(`/workspaces/${slug}/issues`, {
+    params,
+    ...repeatParams,
+  })
+
+/** Every workspace issue matching `params` (follows `next_cursor`). */
+export async function getAllWorkspaceIssues(
+  slug: string,
+  params: Omit<WorkspaceListParams, 'cursor' | 'limit'> = {},
+  maxPages = 20,
+): Promise<Issue[]> {
+  const all: Issue[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < maxPages; page++) {
+    const res = await getWorkspaceIssues(slug, {
+      ...params,
+      limit: 100,
+      cursor,
+    })
+    all.push(...res.data)
+    if (!res.next_cursor) break
+    cursor = res.next_cursor
+  }
+  return all
+}
+
+// ─── Distribution to departments (6.B1) ───────────────────────────────────────
+
+export interface DistributeBody {
+  title: string
+  description?: string | null
+  state_id?: string
+  priority?: IssuePriorityValue
+  label_ids?: string[]
+  due_date?: string | null
+  controller_id?: string | null
+  requires_review?: boolean
+  basis?: string | null
+  department_ids: string[]
+}
+
+/** Parent assignment + one child per department (head = responsible). Returns the parent with `distribution`. */
+export const distributeIssue = (
+  slug: string,
+  projectId: string,
+  body: DistributeBody,
+) =>
+  client.post<unknown, Issue>(
+    `/workspaces/${slug}/projects/${projectId}/issues/distribute`,
+    body,
+  )

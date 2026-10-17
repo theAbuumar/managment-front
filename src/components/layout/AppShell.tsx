@@ -15,13 +15,15 @@ export function AppShell() {
   useSummarySync()
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <Topbar onMenuClick={() => setMobileOpen(true)} />
+    <div className="flex h-screen flex-col overflow-hidden bg-background" data-print="page">
+      <div className="contents" data-print="hide">
+        <Topbar onMenuClick={() => setMobileOpen(true)} />
+      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Desktop: icon rail + active panel */}
-        <SidebarRail className="hidden md:flex" />
-        <ActivePanel className="hidden md:flex" />
+      <div className="flex flex-1 overflow-hidden" data-print="page">
+        {/* Desktop: icon rail + active panel (hidden when printing a report page) */}
+        <SidebarRail className="hidden md:flex print-hidden" />
+        <ActivePanel className="hidden md:flex print-hidden" />
 
         {/* Mobile sheet */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -31,7 +33,7 @@ export function AppShell() {
           </SheetContent>
         </Sheet>
 
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main className="flex-1 overflow-y-auto bg-background" data-print="page">
           <Outlet />
         </main>
       </div>

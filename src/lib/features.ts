@@ -7,7 +7,7 @@ export const FEATURES = {
   views: false,
   cycles: false,
   modules: false,
-  analytics: false,
+  analytics: true,
   ai: false,
   orgStructure: true,
   projectStates: false,

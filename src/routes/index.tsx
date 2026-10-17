@@ -22,6 +22,10 @@ import { NotificationsPage } from '@/features/notifications/NotificationsPage'
 import { YourWorkPage } from '@/features/your-work/YourWorkPage'
 import { HomePage } from '@/features/home/HomePage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
+import { IssuesDrilldownPage } from '@/features/analytics/IssuesDrilldownPage'
+import { DepartmentPage } from '@/features/analytics/DepartmentPage'
+import { FEATURES } from '@/lib/features'
 
 // Only sections with a real page are routed (ADR-019); new pages are added here
 // together with their flag in src/lib/features.ts.
@@ -78,6 +82,14 @@ export const router = createBrowserRouter([
           },
           { path: 'projects/:id/work-items', element: <WorkItemsPage /> },
           { path: 'projects-list', element: <ProjectsPage /> },
+          // The list behind any analytics figure (GET WS/issues with filters in the URL).
+          { path: 'issues', element: <IssuesDrilldownPage /> },
+          ...(FEATURES.analytics
+            ? [
+                { path: 'analytics', element: <AnalyticsPage /> },
+                { path: 'departments/:id', element: <DepartmentPage /> },
+              ]
+            : []),
         ],
       },
     ],

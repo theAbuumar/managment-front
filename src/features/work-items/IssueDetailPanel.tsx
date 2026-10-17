@@ -17,6 +17,7 @@ import {
   UserCheck,
   FileText,
   Paperclip,
+  Send,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -64,6 +65,7 @@ import {
   type DeadlineRequest,
 } from '@/api/control'
 import { ControlBlock } from './control/ControlBlock'
+import { DistributionBlock } from './control/DistributionBlock'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
 
@@ -117,6 +119,7 @@ export function IssueDetailPanel({
   onOpenChange,
   onUpdated,
   onDeleted,
+  onOpenIssue,
 }: {
   issue: Issue | null
   project: Project | null
@@ -126,6 +129,8 @@ export function IssueDetailPanel({
   onOpenChange: (open: boolean) => void
   onUpdated: (issue: Issue) => void
   onDeleted: (issueId: string) => void
+  /** Open another issue of the same project (a distribution's child). */
+  onOpenIssue?: (issueId: string) => void
 }) {
   const { t } = useTranslation()
   const currentUserId = useAuthStore((s) => s.user?.id)
@@ -486,6 +491,22 @@ export function IssueDetailPanel({
                 </div>
               )}
 
+              {issue.parent_id && issue.department && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                  <Send size={14} className="shrink-0" />
+                  <span>{t('Подразделение: {{name}}', { name: issue.department.name })}</span>
+                  {onOpenIssue && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenIssue(issue.parent_id!)}
+                      className="text-primary hover:underline"
+                    >
+                      {t('открыть сводное поручение')}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <Textarea
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
@@ -496,8 +517,24 @@ export function IssueDetailPanel({
               />
             </div>
 
+            {/* A distribution's parent shows the departments instead of its own control block. */}
+            {issue.is_distribution && (
+              <DistributionBlock
+                slug={slug}
+                projectId={projectId}
+                issue={issue}
+                states={states}
+                canClose={isReviewer}
+                onOpenIssue={onOpenIssue}
+                onIssue={(updated) => {
+                  onUpdated(updated)
+                  refreshFeed()
+                }}
+              />
+            )}
+
             {/* Execution control */}
-            {(isAssignment || issue.assignees.length > 0) && (
+            {!issue.is_distribution && (isAssignment || issue.assignees.length > 0) && (
               <ControlBlock
                 slug={slug}
                 projectId={projectId}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LayoutGrid, List, AlertCircle, Plus } from 'lucide-react'
+import { LayoutGrid, List, AlertCircle, Plus, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
 import { BoardView } from './BoardView'
 import { ListView } from './ListView'
 import { CreateIssueDialog } from './CreateIssueDialog'
+import { DistributeDialog } from './DistributeDialog'
 import { IssueDetailPanel } from './IssueDetailPanel'
 import { SubmitReviewDialog } from './control/ControlDialogs'
 
@@ -66,6 +67,7 @@ export function WorkItemsPage() {
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('board')
   const [createOpen, setCreateOpen] = useState(false)
+  const [distributeOpen, setDistributeOpen] = useState(false)
   // The open issue lives in the URL (?issue=<id>) so notifications, the home page
   // and deep links can open a specific work item.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -297,6 +299,18 @@ export function WorkItemsPage() {
             ))}
           </div>
 
+          {/* One assignment for several departments (6.F1) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDistributeOpen(true)}
+            disabled={loading || !!error || states.length === 0}
+            title={t('Разослать подразделениям')}
+          >
+            <Send size={15} />
+            <span className="hidden sm:inline">{t('Разослать')}</span>
+          </Button>
+
           {/* Add work item */}
           <Button
             size="sm"
@@ -396,6 +410,23 @@ export function WorkItemsPage() {
       )}
 
       {slug && projectId && (
+        <DistributeDialog
+          open={distributeOpen}
+          onOpenChange={setDistributeOpen}
+          slug={slug}
+          projectId={projectId}
+          onCreated={async (parent) => {
+            // The children are new rows on the board too.
+            const all = await getAllIssues(slug, projectId, { sort_by: 'sort_order', order: 'asc' }).catch(
+              () => null,
+            )
+            setIssues((prev) => all ?? [...prev, parent])
+            setSelectedId(parent.id)
+          }}
+        />
+      )}
+
+      {slug && projectId && (
         <IssueDetailPanel
           issue={selectedIssue}
           project={project}
@@ -412,6 +443,7 @@ export function WorkItemsPage() {
             setIssues((prev) => prev.filter((i) => i.id !== id))
             setSelectedId(null)
           }}
+          onOpenIssue={setSelectedId}
         />
       )}
 

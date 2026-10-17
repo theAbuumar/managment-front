@@ -1,13 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Home, ArrowRight } from 'lucide-react'
+import {
+  Home,
+  ArrowRight,
+  Gauge,
+  CheckCircle2,
+  Flame,
+  Briefcase,
+  CalendarClock,
+  EyeOff,
+  Bell,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { getProjects } from '@/api/project'
-import { getIssues } from '@/api/issue'
+import { getWorkspaceIssues, type Issue } from '@/api/issue'
+import { getNotifications, type AppNotification } from '@/api/notification'
+import { getDashboard, type Dashboard } from '@/api/analytics'
+import { deadlineInfo } from '@/lib/deadline'
+import { shortName } from '@/lib/people'
 import { timeAgo } from '@/lib/dates'
+import { FEATURES } from '@/lib/features'
+import { IssueRow } from '@/features/issues/IssueRow'
+import { WorkspaceIssuePanel } from '@/features/issues/WorkspaceIssuePanel'
+import { TYPE_META, TONES } from '@/features/notifications/notificationMeta'
+import { BarList, DisciplineTrend, StatTile } from '@/features/analytics/charts'
+import {
+  delta,
+  fmt,
+  issuesLink,
+  pct,
+  periodLabel,
+} from '@/features/analytics/format'
 import { t as translate } from '@/i18n'
+
+// Home by role (Ф7 7.F1, Ф10 10.F3) in three requests whatever the number of
+// projects: my open work (GET WS/issues), the latest notifications, and the
+// analytics dashboard. Heads and admins get the compact management dashboard;
+// everyone gets their week and their own discipline figure.
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -25,83 +57,81 @@ function formatToday() {
   })
 }
 
-const PALETTE = ['#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#3b82f6']
-const colorFor = (s: string) =>
-  PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length]
-
-interface HistoryItem {
-  key: string
-  projectId: string
-  code: string
-  short: string
-  title: string
-  ago: string
-  assignee: string
-  assigneeColor: string
-}
-
 export function HomePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const me = user?.id
   const workspace = useWorkspaceStore((s) => s.workspace)
+  const slug = workspace?.slug
+  const timeZone =
+    workspace?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [mine, setMine] = useState<Issue[] | null>(null)
+  const [notes, setNotes] = useState<AppNotification[] | null>(null)
+  const [dash, setDash] = useState<Dashboard | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // Recently updated work items across the workspace's projects, newest first.
-  // One request per project for now; the workspace-level issues endpoint (Ф7)
-  // replaces this fan-out.
   useEffect(() => {
+    if (!slug) return
     let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      if (!workspace) return
-      const projects = await getProjects(workspace.slug).catch(() => [])
-      const perProject = await Promise.all(
-        projects.map((p) =>
-          getIssues(workspace.slug, p.id, {
-            sort_by: 'updated_at',
-            order: 'desc',
-            limit: 5,
-          })
-            .then((r) => r.data.map((iss) => ({ iss, ident: p.identifier })))
-            .catch(() => []),
-        ),
-      )
-      const items: HistoryItem[] = perProject
-        .flat()
-        .sort(
-          (a, b) =>
-            new Date(b.iss.updated_at).getTime() -
-            new Date(a.iss.updated_at).getTime(),
-        )
-        .slice(0, 8)
-        .map(({ iss, ident }) => {
-          const name = iss.assignees[0]?.user?.display_name ?? ''
-          return {
-            key: iss.id,
-            projectId: iss.project_id,
-            code: `${ident}-${iss.sequence_id}`,
-            short: ident.slice(0, 2).toUpperCase(),
-            title: iss.title,
-            ago: timeAgo(iss.updated_at),
-            assignee: name[0]?.toUpperCase() ?? '—',
-            assigneeColor: colorFor(iss.assignees[0]?.user_id ?? iss.id),
-          }
-        })
-      if (!cancelled) setHistory(items)
-    })().finally(() => {
-      if (!cancelled) setLoading(false)
+    void Promise.all([
+      getWorkspaceIssues(slug, {
+        assignee: 'me',
+        open: 'true',
+        sort_by: 'due_date',
+        order: 'asc',
+        limit: 100,
+      })
+        .then((r) => r.data)
+        .catch(() => []),
+      getNotifications(slug, { limit: 5 })
+        .then((r) => r.data)
+        .catch(() => []),
+      FEATURES.analytics
+        ? getDashboard(slug, { limit: 5 }).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([issues, notifications, dashboard]) => {
+      if (cancelled) return
+      setMine(issues)
+      setNotes(notifications)
+      setDash(dashboard)
     })
     return () => {
       cancelled = true
     }
-  }, [workspace?.slug]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug])
+
+  // My week: overdue, today, the next 7 days — the order a person works through them.
+  const week = useMemo(() => {
+    const rows = (mine ?? []).map((i) => ({
+      i,
+      info: deadlineInfo(i.due_date, i.state?.group, timeZone),
+    }))
+    return {
+      overdue: rows.filter((r) => r.info.tone === 'overdue').map((r) => r.i),
+      today: rows.filter((r) => r.info.tone === 'today').map((r) => r.i),
+      soon: rows
+        .filter(
+          (r) =>
+            r.info.tone !== 'overdue' &&
+            r.info.tone !== 'today' &&
+            (r.info.days ?? 99) <= 7,
+        )
+        .map((r) => r.i),
+      unack: (mine ?? []).filter(
+        (i) =>
+          i.kind === 'assignment' &&
+          i.assignees.some((a) => a.user_id === me && !a.acknowledged_at),
+      ),
+    }
+  }, [mine, timeZone, me])
+
+  const manager = dash && dash.scope.kind !== 'self'
+  const selected = (mine ?? []).find((i) => i.id === selectedId) ?? null
 
   return (
     <div className="flex h-full flex-col">
-      {/* Page top bar */}
       <div className="flex h-10 shrink-0 items-center border-b border-border px-4">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Home size={14} />
@@ -109,11 +139,9 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-6 py-10">
-          {/* Greeting */}
-          <div className="mb-8 text-center">
+        <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
+          <div className="text-center">
             <h1 className="mb-1 text-2xl font-bold text-foreground">
               {getGreeting()}, {user?.display_name ?? ''}
             </h1>
@@ -122,11 +150,13 @@ export function HomePage() {
             </p>
           </div>
 
-          {/* Recently updated work items */}
+          {manager && <ManagerDashboard dash={dash} />}
+
+          {/* My week */}
           <section>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-foreground">
-                {t('Недавние задачи')}
+                {t('Мои задачи на неделю')}
               </h2>
               <button
                 onClick={() => navigate('/your-work')}
@@ -136,54 +166,377 @@ export function HomePage() {
                 <ArrowRight size={14} />
               </button>
             </div>
+            {mine === null ? (
+              <Skeleton className="h-32" />
+            ) : (
+              <>
+                <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <StatTile
+                    icon={Flame}
+                    label={t('Просрочено')}
+                    value={fmt(week.overdue.length)}
+                    critical={week.overdue.length > 0}
+                  />
+                  <StatTile
+                    icon={CalendarClock}
+                    label={t('Срок сегодня')}
+                    value={fmt(week.today.length)}
+                  />
+                  <StatTile
+                    icon={Briefcase}
+                    label={t('На неделе')}
+                    value={fmt(week.soon.length)}
+                  />
+                  <StatTile
+                    icon={EyeOff}
+                    label={t('Ждут ознакомления')}
+                    value={fmt(week.unack.length)}
+                    onClick={
+                      week.unack[0]
+                        ? () => setSelectedId(week.unack[0]!.id)
+                        : undefined
+                    }
+                  />
+                </div>
+                {week.overdue.length + week.today.length + week.soon.length ===
+                0 ? (
+                  <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                    {mine.length === 0
+                      ? t('У вас нет открытых задач.')
+                      : t(
+                          'На ближайшую неделю сроков нет — всё под контролем.',
+                        )}
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                    {[...week.overdue, ...week.today, ...week.soon]
+                      .slice(0, 10)
+                      .map((issue) => (
+                        <IssueRow
+                          key={issue.id}
+                          issue={issue}
+                          person="controller"
+                          onOpen={() => setSelectedId(issue.id)}
+                        />
+                      ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
 
-            {loading ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                {t('Загрузка…')}
-              </p>
-            ) : history.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                {t('Пока пусто — здесь появятся задачи, с которыми вы работаете.')}
+          {/* Own discipline for those who don't manage anyone. */}
+          {dash && !manager && dash.current.discipline !== null && (
+            <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <StatTile
+                icon={Gauge}
+                label={t('Моя исполнительская дисциплина')}
+                value={pct(dash.current.discipline)}
+                delta={delta(
+                  dash.current.discipline,
+                  dash.previous.discipline,
+                  { upIsGood: true, points: true },
+                )}
+                hint={periodLabel(dash.period)}
+              />
+              <StatTile
+                icon={CheckCircle2}
+                label={t('Исполнено за период')}
+                value={fmt(dash.current.completed)}
+              />
+            </section>
+          )}
+
+          {/* Latest notifications */}
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t('Последние уведомления')}
+              </h2>
+              <button
+                onClick={() => navigate('/notifications')}
+                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                {t('Все уведомления')}
+                <ArrowRight size={14} />
+              </button>
+            </div>
+            {notes === null ? (
+              <Skeleton className="h-24" />
+            ) : notes.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                {t('Уведомлений пока нет.')}
               </p>
             ) : (
-              <div className="space-y-2">
-                {history.map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() =>
-                      navigate(
-                        `/projects/${item.projectId}/work-items?issue=${item.key}`,
-                      )
-                    }
-                    className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-muted"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-500 text-[11px] font-bold text-white">
-                      {item.short}
-                    </div>
-                    <div className="flex flex-1 items-center gap-2 overflow-hidden">
-                      <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                        {item.code}
+              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                {notes.map((n) => {
+                  const meta = TYPE_META[n.type] ?? {
+                    icon: Bell,
+                    tone: 'gray' as const,
+                    text: () => '',
+                  }
+                  const Icon = meta.icon
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() =>
+                        n.issue
+                          ? navigate(
+                              `/projects/${n.issue.project_id}/work-items?issue=${n.issue.id}`,
+                            )
+                          : navigate('/notifications')
+                      }
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50"
+                    >
+                      <span
+                        className={cn(
+                          'flex size-7 shrink-0 items-center justify-center rounded-full',
+                          TONES[meta.tone],
+                        )}
+                      >
+                        <Icon size={14} />
                       </span>
-                      <span className="truncate text-sm text-foreground">
-                        {item.title}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-foreground">
+                          {meta.text(n, shortName(n.actor))}
+                        </span>
+                        {n.issue && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {n.issue.project.identifier}-{n.issue.sequence_id} ·{' '}
+                            {n.issue.title}
+                          </span>
+                        )}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {item.ago}
+                        {timeAgo(n.created_at)}
                       </span>
-                    </div>
-                    <div
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                      style={{ backgroundColor: item.assigneeColor }}
-                    >
-                      {item.assignee}
-                    </div>
-                  </button>
-                ))}
+                      {!n.is_read && (
+                        <span
+                          className="size-2 shrink-0 rounded-full bg-primary"
+                          aria-label={t('Новое')}
+                        />
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </section>
         </div>
       </div>
+
+      {slug && (
+        <WorkspaceIssuePanel
+          slug={slug}
+          issue={selected}
+          onClose={() => setSelectedId(null)}
+          onUpdated={(updated) =>
+            setMine(
+              (prev) =>
+                prev?.map((i) => (i.id === updated.id ? updated : i)) ?? prev,
+            )
+          }
+          onDeleted={(id) => {
+            setMine((prev) => prev?.filter((i) => i.id !== id) ?? prev)
+            setSelectedId(null)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+/** Compact management dashboard (10.F3): the full one is the «Аналитика» page. */
+function ManagerDashboard({ dash }: { dash: Dashboard }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const c = dash.current
+  const p = dash.previous
+  const ranked = [...dash.departments].sort(
+    (a, b) =>
+      (b.total.discipline ?? -1) - (a.total.discipline ?? -1) ||
+      b.total.overdue - a.total.overdue,
+  )
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">
+          {dash.scope.kind === 'all'
+            ? t('Исполнение поручений')
+            : t('Исполнение поручений в вашем подразделении')}
+          <span className="ml-2 font-normal text-muted-foreground">
+            {t('{{cur}}, изменения — к {{prev}}', {
+              cur: periodLabel(dash.period),
+              prev: periodLabel(dash.previous_period),
+            })}
+          </span>
+        </h2>
+        <button
+          onClick={() => navigate('/analytics')}
+          className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          {t('Вся аналитика')}
+          <ArrowRight size={14} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatTile
+          icon={Gauge}
+          label={t('Исполнено в срок')}
+          value={pct(c.discipline)}
+          delta={delta(c.discipline, p.discipline, {
+            upIsGood: true,
+            points: true,
+          })}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          label={t('Исполнено')}
+          value={fmt(c.completed)}
+          delta={delta(c.completed, p.completed, { upIsGood: true })}
+        />
+        <StatTile
+          icon={Flame}
+          label={t('Просрочено сейчас')}
+          value={fmt(c.overdue)}
+          critical={c.overdue > 0}
+          delta={delta(c.overdue, p.overdue, { upIsGood: false })}
+          onClick={() =>
+            navigate(
+              issuesLink(
+                {},
+                { overdue: true, title: t('Просроченные поручения') },
+              ),
+            )
+          }
+        />
+        <StatTile
+          icon={Briefcase}
+          label={t('В работе')}
+          value={fmt(c.open)}
+          hint={t('не ознакомлены: {{n}}', { n: c.unacknowledged })}
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold">
+            {t('Рейтинг подразделений — исполнено в срок')}
+          </h3>
+          {ranked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t('Нет данных за период.')}
+            </p>
+          ) : (
+            <BarList
+              max={100}
+              rows={ranked.slice(0, 8).map((d) => ({
+                id: d.id,
+                label: d.short_name ?? d.name,
+                value: d.total.discipline,
+                valueText: pct(d.total.discipline),
+                tooltip: t(
+                  '{{name}}: исполнено {{done}}, в срок {{onTime}}, с опозданием {{late}}',
+                  {
+                    name: d.name,
+                    done: d.total.completed,
+                    onTime: d.total.on_time,
+                    late: d.total.late,
+                  },
+                ),
+                note: d.total.overdue
+                  ? t('просрочено: {{n}}', { n: d.total.overdue })
+                  : undefined,
+                noteCritical: d.total.overdue > 0,
+                onClick: () => navigate(`/analytics?department=${d.id}`),
+                onNoteClick: () =>
+                  navigate(
+                    issuesLink(
+                      {},
+                      {
+                        department: d.id,
+                        overdue: true,
+                        title: t('Просрочено: {{name}}', { name: d.name }),
+                      },
+                    ),
+                  ),
+              }))}
+            />
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="mb-3 text-sm font-semibold">
+            {t('Самые просроченные')}
+          </h3>
+          {dash.overdue.items.length === 0 ? (
+            <p className="flex items-center gap-1.5 text-sm text-[var(--viz-good-text)]">
+              <CheckCircle2 size={15} />
+              {t('Просроченных поручений нет.')}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {dash.overdue.items.map((x) => (
+                <li key={x.id}>
+                  <button
+                    onClick={() =>
+                      x.project &&
+                      navigate(
+                        `/projects/${x.project.id}/work-items?issue=${x.id}`,
+                      )
+                    }
+                    className="flex w-full items-start gap-2 text-left hover:text-primary"
+                  >
+                    <span className="mt-0.5 shrink-0 font-mono text-xs text-muted-foreground">
+                      {x.key}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{x.title}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {[
+                          shortName(x.assignee),
+                          x.department?.short_name ?? x.department?.name,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--viz-critical)]">
+                      <Flame size={12} aria-hidden />
+                      {t('{{n}} дн.', { n: x.days_overdue })}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {dash.overdue.total > dash.overdue.items.length && (
+            <button
+              onClick={() =>
+                navigate(
+                  issuesLink(
+                    {},
+                    { overdue: true, title: t('Просроченные поручения') },
+                  ),
+                )
+              }
+              className="mt-3 text-xs font-medium text-primary hover:underline"
+            >
+              {t('Все просроченные: {{n}}', { n: dash.overdue.total })}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {dash.trend.length > 1 && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="mb-1 text-sm font-semibold">
+            {t('Исполнено в срок по неделям, %')}
+          </h3>
+          <DisciplineTrend items={dash.trend} bucket="week" height={160} />
+        </div>
+      )}
+    </section>
   )
 }

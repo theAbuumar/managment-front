@@ -63,6 +63,14 @@
   --nav-hover-bg: oklch(0.944 0 0);
   --radius: 0.5rem;
 
+  /* ── Charts (Ф10): two validated categorical slots, status, chrome (dataviz). */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-critical: #d03b3b;
+  --viz-good-text: #006300;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #898781;
+
   /* ── Spacing scale (safe prefix — NOT --spacing-*, never enters Tailwind's box-model namespace) */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -97,6 +105,13 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --nav-active-bg: oklch(0.25 0.07 264);
   --nav-hover-bg: oklch(0.25 0 0);
+
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-critical: #d03b3b;
+  --viz-good-text: #0ca30c;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #898781;
 }
 
 @theme {
@@ -124,4 +139,28 @@ body {
   background-color: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Print (Ф10 10.F4): the analytics page prints as a report — no app chrome. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .print-hidden,
+  [data-print='hide'] {
+    display: none !important;
+  }
+  [data-print='page'] {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .print-break-avoid {
+    break-inside: avoid;
+  }
 }
