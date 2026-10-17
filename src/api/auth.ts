@@ -37,10 +37,16 @@ export const logout = () => client.post<unknown, void>('/auth/logout')
 // Current user for the stored token (used after an OAuth redirect).
 export const getMe = () => client.get<unknown, AuthUser>('/auth/me')
 
-// Backend only accepts display_name / avatar_url.
+// Profile: ФИО (display_name is rebuilt from it), phone, language, time zone, avatar.
 export const updateMe = (data: {
   display_name?: string
   avatar_url?: string | null
+  last_name?: string | null
+  first_name?: string | null
+  middle_name?: string | null
+  phone?: string | null
+  locale?: 'ru' | 'en'
+  timezone?: string | null
 }) => client.patch<unknown, AuthUser>('/auth/me', data)
 
 // Code-confirmed account deletion — a two-step flow (both require a session).
@@ -80,3 +86,18 @@ export const telegramStatus = (token: string) =>
       user?: AuthUser
     }
   >(`/auth/telegram/status?token=${encodeURIComponent(token)}`)
+
+// ─── Demo stand quick login (backend DEMO_MODE only; 404 otherwise) ────────────
+
+export interface DemoAccount {
+  email: string
+  display_name: string
+  position: string | null
+  role: string | null
+  workspace: string | null
+}
+
+export const getDemoAccounts = () => client.get<unknown, DemoAccount[]>('/auth/demo/accounts')
+
+export const demoLogin = (email: string) =>
+  client.post<unknown, AuthResponse>('/auth/demo/login', { email })

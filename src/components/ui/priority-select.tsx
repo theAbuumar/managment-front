@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { t } from '@/i18n'
 import { type IssuePriority } from '@/components/ui/status-badge'
 
 interface PriorityMeta {
@@ -24,37 +25,49 @@ interface PriorityMeta {
 
 const CONFIG: Record<IssuePriority, PriorityMeta> = {
   urgent: {
-    label: 'Urgent',
+    get label() {
+      return t('Срочный')
+    },
     icon: CircleAlert,
     iconClass: 'text-red-500',
     boxClass: 'bg-red-500/20',
   },
   high: {
-    label: 'High',
+    get label() {
+      return t('Высокий')
+    },
     icon: SignalHigh,
     iconClass: 'text-orange-500',
     boxClass: 'bg-orange-500/20',
   },
   medium: {
-    label: 'Medium',
+    get label() {
+      return t('Средний')
+    },
     icon: SignalMedium,
     iconClass: 'text-yellow-500',
     boxClass: 'bg-yellow-500/20',
   },
   low: {
-    label: 'Low',
+    get label() {
+      return t('Низкий')
+    },
     icon: SignalLow,
     iconClass: 'text-blue-500',
     boxClass: 'bg-blue-500/20',
   },
   none: {
-    label: 'None',
+    get label() {
+      return t('Без приоритета')
+    },
     icon: Ban,
     iconClass: 'text-gray-400',
     boxClass: 'bg-gray-400/15',
   },
   backlog: {
-    label: 'Backlog',
+    get label() {
+      return t('Бэклог')
+    },
     icon: Archive,
     iconClass: 'text-slate-400',
     boxClass: 'bg-slate-500/20',
@@ -87,7 +100,7 @@ interface PrioritySelectProps {
 export function PrioritySelect({
   value,
   onChange,
-  placeholder = 'Select priority',
+  placeholder = t('Выберите приоритет'),
   disabled,
 }: PrioritySelectProps) {
   const [open, setOpen] = useState(false)
@@ -154,7 +167,7 @@ export function PrioritySelect({
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
+              placeholder={t('Поиск')}
               className="flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>

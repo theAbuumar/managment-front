@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { LayoutGrid, List, AlertCircle, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -7,6 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { useAuthStore } from '@/stores/authStore'
+import { ApiError } from '@/api/client'
+import { errorText } from '@/lib/errorMessages'
+import { deadlineInfo } from '@/lib/deadline'
+import { t as translate } from '@/i18n'
 import { getProject, type Project } from '@/api/project'
 import { getStates, type State } from '@/api/state'
 import {
@@ -24,16 +30,33 @@ import { BoardView } from './BoardView'
 import { ListView } from './ListView'
 import { CreateIssueDialog } from './CreateIssueDialog'
 import { IssueDetailPanel } from './IssueDetailPanel'
+import { SubmitReviewDialog } from './control/ControlDialogs'
 
-const errMsg = (err: unknown, fallback: string) =>
-  err instanceof Error ? err.message : fallback
+const errMsg = (err: unknown, fallback: string) => errorText(err, fallback)
 
 type ViewMode = 'board' | 'list'
 
+// Quick filters for the board (Ф5): who's responsible, what needs attention.
+type QuickFilter = 'all' | 'mine' | 'control' | 'overdue' | 'review' | 'unack'
+const QUICK_FILTERS: { key: QuickFilter; label: () => string }[] = [
+  { key: 'all', label: () => translate('Все') },
+  { key: 'mine', label: () => translate('Мои') },
+  { key: 'control', label: () => translate('На контроле') },
+  { key: 'overdue', label: () => translate('Просрочено') },
+  { key: 'review', label: () => translate('На проверке') },
+  { key: 'unack', label: () => translate('Не ознакомлены') },
+]
+
 export function WorkItemsPage() {
+  const { t } = useTranslation()
   const { id: projectId } = useParams()
   const workspace = useWorkspaceStore((s) => s.workspace)
   const slug = workspace?.slug
+  const me = useAuthStore((s) => s.user?.id)
+  const timeZone = workspace?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [quick, setQuick] = useState<QuickFilter>('all')
+  // Hand-in dialog opened from a drag to "На проверке" / "Готово".
+  const [reviewFor, setReviewFor] = useState<{ issue: Issue; note?: string } | null>(null)
 
   const [project, setProject] = useState<Project | null>(null)
   const [states, setStates] = useState<State[]>([])
@@ -81,7 +104,7 @@ export function WorkItemsPage() {
         setIssues(all)
         setMembers(mem)
       } catch (err) {
-        if (!cancelled) setError(errMsg(err, 'Failed to load work items'))
+        if (!cancelled) setError(errMsg(err, t('Не удалось загрузить задачи')))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -89,7 +112,7 @@ export function WorkItemsPage() {
     return () => {
       cancelled = true
     }
-  }, [slug, projectId])
+  }, [slug, projectId, t])
 
   async function handleCreate(stateId: string, title: string) {
     if (!slug || !projectId) return
@@ -101,25 +124,76 @@ export function WorkItemsPage() {
       })
       setIssues((prev) => [...prev, issue])
     } catch (err) {
-      toast.error(errMsg(err, 'Could not create work item'))
+      toast.error(errMsg(err, t('Не удалось создать задачу')))
     }
+  }
+
+  const myRole = members.find((m) => m.user_id === me)?.role
+  /** Controller (or author when there is none) or a workspace admin decides. */
+  function isReviewer(issue: Issue) {
+    if (myRole === 'owner' || myRole === 'admin') return true
+    return (issue.controller_id ?? issue.created_by_id) === me
   }
 
   async function handleMove(issueId: string, toStateId: string) {
     if (!slug || !projectId) return
     const target = issues.find((i) => i.id === issueId)
     if (!target || target.state_id === toStateId) return
+    const toGroup = states.find((s) => s.id === toStateId)?.group
+    const fromGroup = states.find((s) => s.id === target.state_id)?.group
+
+    // Execution control (Ф5): a drop on "На проверке" is a hand-in with a report;
+    // an assignment can only reach "Готово" through its controller.
+    if (toGroup === 'review' && fromGroup !== 'review' && target.kind === 'assignment') {
+      setReviewFor({ issue: target })
+      return
+    }
+    if (toGroup === 'completed' && target.requires_review && !isReviewer(target)) {
+      setReviewFor({
+        issue: target,
+        note: t('Поручение закрывает контролёр. Отправьте результат на проверку.'),
+      })
+      return
+    }
+
     const snapshot = issues
     setIssues((prev) =>
       prev.map((i) => (i.id === issueId ? { ...i, state_id: toStateId } : i)),
     )
     try {
-      await updateIssue(slug, projectId, issueId, { state_id: toStateId })
+      const updated = await updateIssue(slug, projectId, issueId, { state_id: toStateId })
+      setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
     } catch (err) {
       setIssues(snapshot)
-      toast.error(errMsg(err, 'Could not move work item'))
+      if (err instanceof ApiError && err.code === 'REVIEW_REQUIRED') {
+        setReviewFor({ issue: target, note: err.message })
+        return
+      }
+      toast.error(errMsg(err, t('Не удалось переместить задачу')))
     }
   }
+
+  const visibleIssues = useMemo(() => {
+    if (quick === 'all') return issues
+    return issues.filter((i) => {
+      const group = i.state?.group ?? states.find((s) => s.id === i.state_id)?.group
+      const open = group !== 'completed' && group !== 'cancelled'
+      switch (quick) {
+        case 'mine':
+          return i.assignees.some((a) => a.user_id === me)
+        case 'control':
+          return open && (i.controller_id ?? (i.kind === 'assignment' ? i.created_by_id : null)) === me
+        case 'overdue':
+          return open && deadlineInfo(i.due_date, group, timeZone).tone === 'overdue'
+        case 'review':
+          return group === 'review'
+        case 'unack':
+          return open && i.kind === 'assignment' && i.assignees.some((a) => !a.acknowledged_at)
+        default:
+          return true
+      }
+    })
+  }, [issues, quick, me, states, timeZone])
 
   async function handlePriority(issue: Issue, priority: IssuePriorityValue) {
     if (!slug || !projectId) return
@@ -131,7 +205,7 @@ export function WorkItemsPage() {
       await updateIssue(slug, projectId, issue.id, { priority })
     } catch (err) {
       setIssues(snapshot)
-      toast.error(errMsg(err, 'Could not update priority'))
+      toast.error(errMsg(err, t('Не удалось изменить приоритет')))
     }
   }
 
@@ -141,10 +215,10 @@ export function WorkItemsPage() {
     setIssues((prev) => prev.filter((i) => i.id !== issue.id))
     try {
       await deleteIssue(slug, projectId, issue.id)
-      toast.success('Work item deleted')
+      toast.success(t('Задача удалена'))
     } catch (err) {
       setIssues(snapshot)
-      toast.error(errMsg(err, 'Could not delete work item'))
+      toast.error(errMsg(err, t('Не удалось удалить задачу')))
     }
   }
 
@@ -171,7 +245,7 @@ export function WorkItemsPage() {
       setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
     } catch (err) {
       setIssues(snapshot)
-      toast.error(errMsg(err, 'Could not update assignees'))
+      toast.error(errMsg(err, t('Не удалось изменить исполнителей')))
     }
   }
 
@@ -179,11 +253,14 @@ export function WorkItemsPage() {
     <div className="flex h-full flex-col">
       {/* View bar */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-400 text-sm">
-          📊
+        <div
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-sm"
+          style={{ backgroundColor: project?.color ? `${project.color}26` : undefined }}
+        >
+          {project?.icon ?? '📁'}
         </div>
         <span className="truncate text-sm font-semibold text-foreground">
-          {project?.name ?? 'Work Items'}
+          {project?.name ?? t('Задачи')}
         </span>
         {project && (
           <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
@@ -199,8 +276,8 @@ export function WorkItemsPage() {
           <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
             {(
               [
-                { mode: 'board', icon: LayoutGrid, label: 'Board' },
-                { mode: 'list', icon: List, label: 'List' },
+                { mode: 'board', icon: LayoutGrid, label: t('Доска') },
+                { mode: 'list', icon: List, label: t('Список') },
               ] as const
             ).map(({ mode, icon: Icon, label }) => (
               <button
@@ -227,10 +304,36 @@ export function WorkItemsPage() {
             disabled={loading || !!error || states.length === 0}
           >
             <Plus size={15} />
-            <span className="hidden sm:inline">New</span>
+            <span className="hidden sm:inline">{t('Создать')}</span>
           </Button>
         </div>
       </div>
+
+      {/* Quick filters */}
+      {!loading && !error && (
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4 py-1.5">
+          {QUICK_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setQuick(f.key)}
+              className={cn(
+                'whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                quick === f.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {f.label()}
+            </button>
+          ))}
+          {quick !== 'all' && (
+            <span className="ml-2 text-xs text-muted-foreground">
+              {t('Показано: {{n}} из {{total}}', { n: visibleIssues.length, total: issues.length })}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
@@ -247,19 +350,19 @@ export function WorkItemsPage() {
         ) : error ? (
           <EmptyState
             icon={AlertCircle}
-            title="Couldn't load work items"
+            title={t('Не удалось загрузить задачи')}
             description={error}
           />
         ) : states.length === 0 ? (
           <EmptyState
             icon={LayoutGrid}
-            title="No states yet"
-            description="This project has no workflow states to organise work items into."
+            title={t('Нет состояний')}
+            description={t('В проекте нет состояний, по которым можно распределить задачи.')}
           />
         ) : view === 'board' ? (
           <BoardView
             states={states}
-            issues={issues}
+            issues={visibleIssues}
             project={project}
             members={members}
             onCreate={handleCreate}
@@ -272,7 +375,7 @@ export function WorkItemsPage() {
         ) : (
           <ListView
             states={states}
-            issues={issues}
+            issues={visibleIssues}
             project={project}
             onCreate={handleCreate}
             onOpen={(issue) => setSelectedId(issue.id)}
@@ -309,6 +412,20 @@ export function WorkItemsPage() {
             setIssues((prev) => prev.filter((i) => i.id !== id))
             setSelectedId(null)
           }}
+        />
+      )}
+
+      {slug && projectId && reviewFor && (
+        <SubmitReviewDialog
+          open
+          onOpenChange={(v) => !v && setReviewFor(null)}
+          slug={slug}
+          projectId={projectId}
+          issue={reviewFor.issue}
+          note={reviewFor.note}
+          onDone={(updated) =>
+            setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+          }
         />
       )}
     </div>

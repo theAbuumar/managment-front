@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { State } from '@/api/state'
@@ -37,6 +38,7 @@ export function BoardView({
   onAssigneeToggle,
   onDelete,
 }: BoardViewProps) {
+  const { t } = useTranslation()
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [composerFor, setComposerFor] = useState<string | null>(null)
@@ -68,6 +70,8 @@ export function BoardView({
             onDrop={() => handleDrop(state.id)}
             className={cn(
               'flex max-h-full w-72 shrink-0 flex-col rounded-xl border border-transparent bg-muted/40 transition-colors',
+              // "На проверке" stands out: that's where the controller looks.
+              state.group === 'review' && 'border-violet-300/60 bg-violet-50/60 dark:border-violet-500/30 dark:bg-violet-500/5',
               isOver && 'border-primary/40 bg-primary/5',
             )}
           >
@@ -87,7 +91,7 @@ export function BoardView({
                 type="button"
                 onClick={() => setComposerFor(state.id)}
                 className="ml-auto rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                title="Add work item"
+                title={t('Добавить задачу')}
               >
                 <Plus size={15} />
               </button>
@@ -120,14 +124,14 @@ export function BoardView({
 
               {composerFor === state.id ? (
                 <InlineComposer
-                  placeholder="What needs to be done?"
+                  placeholder={t('Что нужно сделать?')}
                   onCreate={(title) => onCreate(state.id, title)}
                   onClose={() => setComposerFor(null)}
                 />
               ) : (
                 columnIssues.length === 0 && (
                   <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-                    No work items
+                    {t('Нет задач')}
                   </p>
                 )
               )}
@@ -143,11 +147,11 @@ export function BoardView({
             >
               {composerFor === state.id ? (
                 <>
-                  <X size={13} /> Close
+                  <X size={13} /> {t('Закрыть')}
                 </>
               ) : (
                 <>
-                  <Plus size={13} /> New work item
+                  <Plus size={13} /> {t('Новая задача')}
                 </>
               )}
             </button>

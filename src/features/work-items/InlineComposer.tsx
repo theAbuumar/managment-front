@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 export function InlineComposer({
   onCreate,
   onClose,
-  placeholder = 'Type a title…',
+  placeholder = 'Название…',
   className,
 }: {
   onCreate: (title: string) => void

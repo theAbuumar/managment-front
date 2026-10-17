@@ -39,3 +39,31 @@ export function longDate(iso: string): string {
     year: 'numeric',
   })
 }
+
+// Deadlines travel as an instant but mean a calendar day (end of that day in the
+// workspace zone). A date input's "YYYY-MM-DD" is sent as noon UTC, which lands on
+// the same calendar day in every zone from UTC−11 to UTC+11.
+export function dateInputToIso(value: string): string | null {
+  return value ? `${value}T12:00:00.000Z` : null
+}
+
+/** ISO instant → "YYYY-MM-DD" for a date input, in the given zone. */
+export function isoToDateInput(iso: string | null | undefined, timeZone?: string): string {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso))
+}
+
+/** "17 октября, 14:05" */
+export function dateTime(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}

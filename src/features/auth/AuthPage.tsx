@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Sparkles } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,10 @@ import {
   telegramInit,
   telegramStatus,
   OAUTH_URLS,
+  getDemoAccounts,
+  demoLogin,
   type AuthResponse,
+  type DemoAccount,
 } from '@/api/auth'
 import { getWorkspaces } from '@/api/workspace'
 import { useAuthStore } from '@/stores/authStore'
@@ -366,6 +369,69 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   )
 }
 
+// Demo stand (backend DEMO_MODE): one-click sign-in as the seeded roles so the
+// jury can switch between Ректор / Проректор / Декан / Сотрудник. Hidden otherwise.
+function DemoLogin() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((s) => s.setAuth)
+  const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
+  const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
+  const [accounts, setAccounts] = useState<DemoAccount[]>([])
+  const [busy, setBusy] = useState<string | null>(null)
+
+  useEffect(() => {
+    getDemoAccounts()
+      .then(setAccounts)
+      .catch(() => setAccounts([]))
+  }, [])
+
+  // One account per demo role, in the order the story is told.
+  const ROLES = [/^Ректор$/i, /^Проректор по учебной/i, /^Декан/i, /^Методист|Сотрудник/i]
+  const featured = ROLES.map((re) => accounts.find((a) => re.test(a.position ?? ''))).filter(
+    (a): a is DemoAccount => Boolean(a),
+  )
+  if (featured.length === 0) return null
+
+  async function enter(account: DemoAccount) {
+    setBusy(account.email)
+    try {
+      const res = await demoLogin(account.email)
+      setAuth(res.user, res.access_token)
+      const list = await getWorkspaces()
+      setWorkspaces(list)
+      if (list[0]) setWorkspace(list[0])
+      navigate('/')
+    } catch (err) {
+      toast.error(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-4">
+      <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-primary">
+        <Sparkles size={15} />
+        {t('Демо-стенд: быстрый вход')}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {featured.slice(0, 4).map((a) => (
+          <button
+            key={a.email}
+            onClick={() => enter(a)}
+            disabled={busy !== null}
+            className="rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary hover:bg-primary/5 disabled:opacity-60"
+          >
+            <span className="block truncate text-sm font-medium">{a.position}</span>
+            <span className="block truncate text-xs text-muted-foreground">{a.display_name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AuthPage() {
   const { t } = useTranslation()
   const [params] = useSearchParams()
@@ -383,6 +449,8 @@ export function AuthPage() {
             {t(APP_TAGLINE)}
           </p>
         </div>
+
+        <DemoLogin />
 
         <Tabs defaultValue={initialTab}>
           <TabsList className="mb-6 w-full">

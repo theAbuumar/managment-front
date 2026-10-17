@@ -1,12 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-interface Workspace {
-  id: string
-  name: string
-  slug: string
-  owner_id?: string
-}
+import type { WorkspaceData } from '@/api/workspace'
+
+// The full workspace record (incl. timezone for deadlines, logo, settings).
+type Workspace = WorkspaceData
 
 interface WorkspaceState {
   workspace: Workspace | null

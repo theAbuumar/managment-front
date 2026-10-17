@@ -1,23 +1,45 @@
 import client from './client'
+import { t } from '@/i18n'
 
 export interface WorkspaceData {
   id: string
   name: string
   slug: string
   owner_id?: string
+  short_name?: string | null
+  description?: string | null
+  logo_url?: string | null
+  /** IANA zone: deadlines and reminders are computed in it. */
+  timezone?: string
+  locale?: string
 }
 
 // Token is attached by the axios request interceptor — callers don't pass it.
 export const getWorkspaces = () =>
   client.get<unknown, WorkspaceData[]>('/workspaces/')
 
+// The browser's zone becomes the workspace zone by default (deadlines, reminders).
 export const createWorkspace = (name: string, slug: string) =>
-  client.post<unknown, WorkspaceData>('/workspaces/', { name, slug })
+  client.post<unknown, WorkspaceData>('/workspaces/', {
+    name,
+    slug,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  })
 
-// Backend only accepts name/slug.
+export const getWorkspace = (slug: string) =>
+  client.get<unknown, WorkspaceData>(`/workspaces/${slug}`)
+
 export const updateWorkspace = (
   slug: string,
-  data: { name?: string; slug?: string },
+  data: {
+    name?: string
+    slug?: string
+    short_name?: string | null
+    description?: string | null
+    logo_url?: string | null
+    timezone?: string
+    locale?: string
+  },
 ) => client.patch<unknown, WorkspaceData>(`/workspaces/${slug}`, data)
 
 // Owner-only on the backend (403 otherwise); returns 204.
@@ -28,21 +50,53 @@ export const deleteWorkspace = (slug: string) =>
 export type AssignableRole = 'admin' | 'member' | 'guest'
 export type MemberRole = 'owner' | AssignableRole
 
+export const ROLE_LABELS: Record<MemberRole, () => string> = {
+  owner: () => t('Владелец'),
+  admin: () => t('Администратор'),
+  member: () => t('Участник'),
+  guest: () => t('Гость'),
+}
+
 export interface WorkspaceMember {
   workspace_id: string
   user_id: string
   role: MemberRole
+  /** Place in the org structure (independent of the access role). */
+  department_id?: string | null
+  position?: string | null
   created_at?: string
   user: {
     id: string
-    email: string
+    email: string | null
     display_name: string
+    last_name?: string | null
+    first_name?: string | null
+    middle_name?: string | null
+    phone?: string | null
     avatar_url: string | null
   }
+  department?: { id: string; name: string; short_name: string | null } | null
 }
 
-export const getWorkspaceMembers = (workspaceSlug: string) =>
-  client.get<unknown, WorkspaceMember[]>(`/workspaces/${workspaceSlug}/members`)
+export const getWorkspaceMembers = (
+  workspaceSlug: string,
+  params?: { department?: string; subtree?: boolean; search?: string },
+) =>
+  client.get<unknown, WorkspaceMember[]>(`/workspaces/${workspaceSlug}/members`, {
+    params,
+  })
+
+// Role, department and/or position (admin+). The owner's role and your own role
+// cannot change; department/position can be set for anyone.
+export const updateMember = (
+  workspaceSlug: string,
+  userId: string,
+  data: { role?: AssignableRole; department_id?: string | null; position?: string | null },
+) =>
+  client.patch<unknown, WorkspaceMember>(
+    `/workspaces/${workspaceSlug}/members/${userId}`,
+    data,
+  )
 
 // Email-token invite for people who may not have an account yet (they get a signup
 // link by email). See inviteExistingUser for inviting already-registered users.

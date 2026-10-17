@@ -1,18 +1,28 @@
 import client from './client'
+import type { StateGroup } from './state'
 
 // Matches the backend PRIORITIES enum. Note `none` is the lowest — the board's
 // status-badge config also has a `backlog` key, but issues never use it.
 export type IssuePriorityValue = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 
+export interface UserBrief {
+  id: string
+  email: string | null
+  display_name: string
+  avatar_url: string | null
+}
+
 export interface IssueAssignee {
   user_id: string
-  user?: {
-    id: string
-    email: string
-    display_name: string
-    avatar_url: string | null
-  }
+  /** Ответственный исполнитель (the others are соисполнители). */
+  is_primary?: boolean
+  /** "Ознакомлен" timestamp; null until the assignee confirms. */
+  acknowledged_at?: string | null
+  user?: UserBrief
 }
+
+/** Задача or поручение (an assignment with a controller who accepts the result). */
+export type IssueKind = 'task' | 'assignment'
 
 export interface IssueLabelLink {
   label_id: string
@@ -38,6 +48,15 @@ export interface Issue {
   due_date: string | null
   completed_at: string | null
   created_by_id: string
+  kind: IssueKind
+  controller_id: string | null
+  requires_review: boolean
+  /** Основание: "Протокол ректората №5 от 12.10.2026". */
+  basis: string | null
+  controller?: UserBrief | null
+  state?: { id: string; name: string; group: StateGroup; color: string }
+  /** watchers; deadline_requests = approved deadline moves ("переносы"). */
+  _count?: { watchers: number; deadline_requests: number }
   sort_order: number
   created_at: string
   updated_at: string
@@ -69,6 +88,15 @@ export interface ListParams {
   cycle?: string
   module?: string
   parent_id?: string
+  kind?: IssueKind
+  controller?: string // user id or 'me'
+  watcher?: string // user id or 'me'
+  // Execution-control filters, computed in the workspace time zone.
+  overdue?: 'true' | 'false'
+  due_within?: number
+  open?: 'true' | 'false'
+  review_pending?: 'true' | 'false'
+  acknowledged?: 'true' | 'false'
   due_before?: string // ISO date/datetime
   due_after?: string
   created_before?: string
@@ -98,6 +126,11 @@ export interface CreateIssueBody {
   label_ids?: string[]
   start_date?: string | null
   due_date?: string | null
+  kind?: IssueKind
+  controller_id?: string | null
+  requires_review?: boolean
+  basis?: string | null
+  primary_assignee_id?: string
 }
 
 export const createIssue = (
@@ -118,6 +151,11 @@ export type UpdateIssueBody = Partial<{
   start_date: string | null
   due_date: string | null
   sort_order: number
+  kind: IssueKind
+  controller_id: string | null
+  requires_review: boolean
+  basis: string | null
+  primary_assignee_id: string
 }>
 
 export const updateIssue = (
