@@ -4,6 +4,7 @@ import { SidebarRail } from '@/features/sidebar/SidebarRail'
 import { SidebarPanel } from '@/features/sidebar/SidebarPanel'
 import { Topbar } from '@/features/topbar/Topbar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useSummarySync } from '@/stores/summaryStore'
 
 function ActivePanel({ className }: { className?: string }) {
   return <SidebarPanel className={className} />
@@ -11,6 +12,7 @@ function ActivePanel({ className }: { className?: string }) {
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  useSummarySync()
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">

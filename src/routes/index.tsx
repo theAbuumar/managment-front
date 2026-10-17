@@ -10,6 +10,7 @@ import { SettingsLayout } from '@/features/settings/SettingsLayout'
 import { MembersPage } from '@/features/settings/MembersPage'
 import { GeneralPage } from '@/features/settings/GeneralPage'
 import { OrgStructurePage } from '@/features/settings/OrgStructurePage'
+import { ControlSettingsPage } from '@/features/settings/ControlSettingsPage'
 import { ProjectsPage } from '@/features/projects/ProjectsPage'
 import { ProjectSettingsLayout } from '@/features/projects/ProjectSettingsLayout'
 import { ProjectGeneralPage } from '@/features/projects/ProjectGeneralPage'
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
           { path: 'general', element: <GeneralPage /> },
           { path: 'members', element: <MembersPage /> },
           { path: 'structure', element: <OrgStructurePage /> },
+          { path: 'control', element: <ControlSettingsPage /> },
         ],
       },
       {

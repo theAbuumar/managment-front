@@ -130,3 +130,25 @@ export const runReminders = (slug: string) =>
     unknown,
     { workspaces: number; sent: { due_soon: number; overdue: number; escalated: number } }
   >(`/workspaces/${slug}/control/run-reminders`, { force: true })
+
+// ─── My counters (sidebar, «Мои задачи») ──────────────────────────────────────
+
+/** COUNT-only summary for the signed-in member (GET /workspaces/:slug/me/summary). */
+export interface MySummary {
+  /** Open issues where I am an assignee. */
+  assigned: number
+  overdue: number
+  due_today: number
+  /** Open assignments I have not acknowledged. */
+  unacknowledged: number
+  /** Open assignments I control (controller, or author without one). */
+  control: number
+  control_overdue: number
+  /** Issues on review that I decide on. */
+  review_pending: number
+  watching: number
+  unread_notifications: number
+}
+
+export const getMySummary = (slug: string) =>
+  client.get<unknown, MySummary>(`/workspaces/${slug}/me/summary`)

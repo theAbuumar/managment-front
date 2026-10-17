@@ -16,11 +16,14 @@ import {
   Trash2,
   BarChart3,
   Mail,
+  ShieldCheck,
+  Hourglass,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getProjects, type Project } from '@/api/project'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { enabled, type FeatureFlag } from '@/lib/features'
+import { useMySummary } from '@/stores/summaryStore'
 
 interface NavItem {
   label: string
@@ -97,10 +100,47 @@ export function SidebarPanel({ className }: { className?: string }) {
     })
   }
 
+  const summary = useMySummary()
+  const workTab = location.pathname === '/your-work' ? new URLSearchParams(location.search).get('tab') : null
+
   function isActive(to: string) {
     if (to === '/') return location.pathname === '/'
+    if (to === '/your-work') return location.pathname === to && workTab !== 'control' && workTab !== 'review'
     return location.pathname.startsWith(to)
   }
+
+  // Counters next to «Мои задачи» and its control rows (Ф5 5.F6). The control
+  // rows appear only for people who actually control or review something.
+  const counters: Record<string, { value: number; alert?: number; alertTitle?: string } | undefined> = summary
+    ? {
+        '/your-work': {
+          value: summary.assigned,
+          alert: summary.overdue,
+          alertTitle: t('Просрочено: {{n}}', { n: summary.overdue }),
+        },
+      }
+    : {}
+  const controlRows = summary
+    ? [
+        {
+          tab: 'control',
+          label: t('На контроле'),
+          icon: ShieldCheck,
+          value: summary.control,
+          alert: summary.control_overdue,
+          alertTitle: t('Просрочено: {{n}}', { n: summary.control_overdue }),
+        },
+        {
+          tab: 'review',
+          label: t('Ждут проверки'),
+          icon: Hourglass,
+          value: 0,
+          alert: summary.review_pending,
+          alertTitle: t('Ждут вашего решения: {{n}}', { n: summary.review_pending }),
+          tone: 'violet' as const,
+        },
+      ].filter((r) => r.value > 0 || r.alert > 0)
+    : []
 
   const subnav = enabled(PROJECT_SUBNAV)
 
@@ -123,19 +163,38 @@ export function SidebarPanel({ className }: { className?: string }) {
         {/* Primary nav */}
         <nav className="mb-3 space-y-0.5">
           {enabled(NAV_ITEMS).map((item) => (
-            <button
-              key={item.to}
-              onClick={() => navigate(item.to)}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                isActive(item.to)
-                  ? 'bg-nav-active-bg font-medium text-primary'
-                  : 'text-foreground hover:bg-muted',
-              )}
-            >
-              <item.icon size={14} className="shrink-0" />
-              {t(item.label)}
-            </button>
+            <div key={item.to} className="space-y-0.5">
+              <button
+                onClick={() => navigate(item.to)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                  isActive(item.to)
+                    ? 'bg-nav-active-bg font-medium text-primary'
+                    : 'text-foreground hover:bg-muted',
+                )}
+              >
+                <item.icon size={14} className="shrink-0" />
+                <span className="flex-1 truncate text-left">{t(item.label)}</span>
+                {counters[item.to] && <Counter {...counters[item.to]!} />}
+              </button>
+              {item.to === '/your-work' &&
+                controlRows.map((row) => (
+                  <button
+                    key={row.tab}
+                    onClick={() => navigate(`/your-work?tab=${row.tab}`)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md py-1.5 pl-7 pr-2 text-sm transition-colors',
+                      workTab === row.tab
+                        ? 'bg-nav-active-bg font-medium text-primary'
+                        : 'text-foreground hover:bg-muted',
+                    )}
+                  >
+                    <row.icon size={13} className="shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-left">{row.label}</span>
+                    <Counter value={row.value} alert={row.alert} alertTitle={row.alertTitle} tone={row.tone} />
+                  </button>
+                ))}
+            </div>
           ))}
         </nav>
 
@@ -277,5 +336,35 @@ export function SidebarPanel({ className }: { className?: string }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Muted total plus an attention pill (red overdue / violet "your decision"). */
+function Counter({
+  value,
+  alert = 0,
+  alertTitle,
+  tone = 'red',
+}: {
+  value: number
+  alert?: number
+  alertTitle?: string
+  tone?: 'red' | 'violet'
+}) {
+  return (
+    <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums">
+      {alert > 0 && (
+        <span
+          title={alertTitle}
+          className={cn(
+            'min-w-[18px] rounded-full px-1.5 py-px text-center font-semibold text-white',
+            tone === 'red' ? 'bg-red-500' : 'bg-violet-500',
+          )}
+        >
+          {alert}
+        </span>
+      )}
+      {value > 0 && <span className="text-muted-foreground">{value}</span>}
+    </span>
   )
 }

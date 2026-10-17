@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Briefcase,
@@ -65,7 +66,11 @@ export function YourWorkPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('assigned')
+  // The tab lives in the URL (?tab=control) so the sidebar can link to it.
+  const [params, setParams] = useSearchParams()
+  const tabParam = params.get('tab')
+  const tab: Tab = TABS.some((x) => x.key === tabParam) ? (tabParam as Tab) : 'assigned'
+  const setTab = (next: Tab) => setParams(next === 'assigned' ? {} : { tab: next }, { replace: true })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // "Done in the last 14 days" is measured from when the page was opened.
   const [openedAt] = useState(() => Date.now())
@@ -147,7 +152,8 @@ export function YourWorkPage() {
     return {
       assigned: mine,
       control: issues.filter((i) => controllerOf(i) === me && i.kind === 'assignment'),
-      review: issues.filter((i) => controllerOf(i) === me && groupOf(i) === 'review'),
+      // Whoever decides on the hand-in: the controller, else the author (backend reviewersOf).
+      review: issues.filter((i) => (i.controller_id ?? i.created_by_id) === me && groupOf(i) === 'review'),
       created: issues.filter((i) => i.created_by_id === me),
       watching: watchedIds ? issues.filter((i) => watchedIds.has(i.id)) : [],
     }

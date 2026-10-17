@@ -85,9 +85,25 @@ function toApiError(err: AxiosError): ApiError {
   )
 }
 
+// Listeners told about every successful write (POST/PATCH/PUT/DELETE), e.g. to
+// refresh the sidebar counters right after a task changes.
+type MutationListener = (url: string) => void
+const mutationListeners = new Set<MutationListener>()
+
+export function onApiMutation(listener: MutationListener): () => void {
+  mutationListeners.add(listener)
+  return () => mutationListeners.delete(listener)
+}
+
 // Unwrap `data` on success; refresh-and-retry on 401; normalize errors to ApiError.
 axiosRequester.interceptors.response.use(
-  (res) => res.data,
+  (res) => {
+    const method = res.config.method?.toLowerCase()
+    if (method && method !== 'get' && method !== 'head') {
+      mutationListeners.forEach((fn) => fn(res.config.url ?? ''))
+    }
+    return res.data
+  },
   async (err: AxiosError) => {
     const original = err.config as
       | (InternalAxiosRequestConfig & { _retried?: boolean })
