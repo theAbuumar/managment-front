@@ -238,6 +238,12 @@ export const getIssue = (slug: string, projectId: string, issueId: string) =>
     `/workspaces/${slug}/projects/${projectId}/issues/${issueId}`,
   )
 
+/** Resolve a human key like `ACCR-12` (deep links, 2.B1). 404 when hidden. */
+export const getIssueByKey = (slug: string, key: string) =>
+  client.get<unknown, Issue>(
+    `/workspaces/${slug}/issues/by-key/${encodeURIComponent(key)}`,
+  )
+
 // Assignee/label mutations all return the full updated issue (with relations),
 // so callers can drop the result straight back into their local state.
 export const addAssignee = (

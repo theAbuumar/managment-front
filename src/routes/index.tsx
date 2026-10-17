@@ -25,6 +25,7 @@ import { ProfilePage } from '@/features/profile/ProfilePage'
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
 import { IssuesDrilldownPage } from '@/features/analytics/IssuesDrilldownPage'
 import { DepartmentPage } from '@/features/analytics/DepartmentPage'
+import { IssueDeepLinkPage } from '@/features/issues/IssueDeepLinkPage'
 import { FEATURES } from '@/lib/features'
 
 // Only sections with a real page are routed (ADR-019); new pages are added here
@@ -33,6 +34,12 @@ export const router = createBrowserRouter([
   { path: '/login', element: <AuthPage /> },
   // Public landing page for the link in an invitation email.
   { path: '/invites/:token', element: <InviteTokenPage /> },
+  // Deep link to an issue from emails / Telegram / «Скопировать ссылку» (ADR-006).
+  // Handles the signed-out case and the workspace switch itself.
+  {
+    path: '/w/:workspaceSlug/browse/:issueKey',
+    element: <IssueDeepLinkPage />,
+  },
   {
     element: <ProtectedRoute />,
     children: [
