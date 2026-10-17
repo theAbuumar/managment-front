@@ -115,3 +115,7 @@ export const inviteExistingUser = (
     `/workspaces/${workspaceSlug}/members/invite-user`,
     body,
   )
+
+// Leave the workspace yourself (any role but owner → 403 OWNER_CANNOT_LEAVE).
+export const leaveWorkspace = (workspaceSlug: string) =>
+  client.post<unknown, void>(`/workspaces/${workspaceSlug}/leave`)

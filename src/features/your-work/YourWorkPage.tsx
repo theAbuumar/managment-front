@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { getProjects, type Project } from '@/api/project'
 import { getStates, type State, type StateGroup } from '@/api/state'
-import { getIssues, type Issue, type IssuePriorityValue } from '@/api/issue'
+import { getAllIssues, type Issue, type IssuePriorityValue } from '@/api/issue'
 import { IssueDetailPanel } from '@/features/work-items/IssueDetailPanel'
 
 const errMsg = (err: unknown, fallback: string) =>
@@ -152,13 +152,12 @@ export function YourWorkPage() {
           projs.map(async (p) => {
             const [st, page] = await Promise.all([
               getStates(slug, p.id).catch(() => [] as State[]),
-              getIssues(slug, p.id, {
-                limit: 100,
+              getAllIssues(slug, p.id, {
                 sort_by: 'updated_at',
                 order: 'desc',
-              }).catch(() => ({ data: [] as Issue[], next_cursor: null })),
+              }).catch(() => [] as Issue[]),
             ])
-            return { project: p, states: st, issues: page.data }
+            return { project: p, states: st, issues: page }
           }),
         )
         if (token !== reqToken.current) return

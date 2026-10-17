@@ -184,3 +184,22 @@ export const removeLabel = (
   client.delete<unknown, Issue>(
     `/workspaces/${slug}/projects/${projectId}/issues/${issueId}/labels/${labelId}`,
   )
+
+// Every issue matching `params`, following `next_cursor` page by page (the list
+// endpoint caps a page at 100). `maxPages` guards against a runaway loop.
+export async function getAllIssues(
+  slug: string,
+  projectId: string,
+  params: Omit<ListParams, 'cursor' | 'limit' | 'group_by'> = {},
+  maxPages = 50,
+): Promise<Issue[]> {
+  const all: Issue[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < maxPages; page++) {
+    const res = await getIssues(slug, projectId, { ...params, limit: 100, cursor })
+    all.push(...res.data)
+    if (!res.next_cursor) break
+    cursor = res.next_cursor
+  }
+  return all
+}

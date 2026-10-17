@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   Home,
@@ -7,37 +8,46 @@ import {
   User,
   ChevronDown,
   ChevronRight,
-  Hash,
-  SlidersHorizontal,
-  LayoutDashboard,
-  PanelLeftClose,
   FolderOpen,
-  MoreHorizontal,
   CircleDot,
   RefreshCw,
   Layers,
   PanelsTopLeft,
+  Trash2,
+  BarChart3,
+  Mail,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { getProjects, type Project } from '@/api/project'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { enabled, type FeatureFlag } from '@/lib/features'
 
-const NAV_ITEMS = [
-  { label: 'Home', icon: Home, to: '/' },
-  { label: 'Drafts', icon: PencilLine, to: '/drafts' },
-  { label: 'Your work', icon: User, to: '/your-work' },
+interface NavItem {
+  label: string
+  icon: LucideIcon
+  to: string
+  feature?: FeatureFlag
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Главная', icon: Home, to: '/' },
+  { label: 'Мои задачи', icon: User, to: '/your-work' },
+  { label: 'Черновики', icon: PencilLine, to: '/drafts', feature: 'drafts' },
+  { label: 'Аналитика', icon: BarChart3, to: '/analytics', feature: 'analytics' },
 ]
 
-const WORKSPACE_ITEMS = [
-  { label: 'Projects', icon: FolderOpen, to: '/projects-list' },
-  { label: 'More', icon: MoreHorizontal, to: '/more' },
+const WORKSPACE_ITEMS: NavItem[] = [
+  { label: 'Проекты', icon: FolderOpen, to: '/projects-list' },
+  { label: 'Приглашения', icon: Mail, to: '/invitations' },
+  { label: 'Корзина', icon: Trash2, to: '/trash', feature: 'trash' },
 ]
 
-// Sub-rows revealed when a project is expanded, mirroring Plane's project nav.
-const PROJECT_SUBNAV = [
-  { label: 'Work items', icon: CircleDot, seg: 'work-items' },
-  { label: 'Cycles', icon: RefreshCw, seg: 'cycles' },
-  { label: 'Modules', icon: Layers, seg: 'modules' },
-  { label: 'Views', icon: PanelsTopLeft, seg: 'views' },
+// Sub-rows revealed when a project is expanded.
+const PROJECT_SUBNAV: (Omit<NavItem, 'to'> & { seg: string })[] = [
+  { label: 'Задачи', icon: CircleDot, seg: 'work-items' },
+  { label: 'Этапы', icon: RefreshCw, seg: 'cycles', feature: 'cycles' },
+  { label: 'Модули', icon: Layers, seg: 'modules', feature: 'modules' },
+  { label: 'Виды', icon: PanelsTopLeft, seg: 'views', feature: 'views' },
 ]
 
 // Deterministic accent per project so its avatar tile stays stable across loads.
@@ -57,6 +67,7 @@ function projectColor(id: string) {
 }
 
 export function SidebarPanel({ className }: { className?: string }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const workspace = useWorkspaceStore((s) => s.workspace)
@@ -91,6 +102,8 @@ export function SidebarPanel({ className }: { className?: string }) {
     return location.pathname.startsWith(to)
   }
 
+  const subnav = enabled(PROJECT_SUBNAV)
+
   return (
     <div
       className={cn(
@@ -99,46 +112,29 @@ export function SidebarPanel({ className }: { className?: string }) {
       )}
     >
       {/* Panel header */}
-      <div className="flex h-10 items-center justify-between px-3 border-b border-border">
-        <span className="text-sm font-semibold">Projects</span>
-        <div className="flex items-center gap-0.5">
-          <button className="rounded p-1 text-muted-foreground hover:bg-muted transition-colors">
-            <SlidersHorizontal size={13} />
-          </button>
-          <button className="rounded p-1 text-muted-foreground hover:bg-muted transition-colors">
-            <LayoutDashboard size={13} />
-          </button>
-          <button className="rounded p-1 text-muted-foreground hover:bg-muted transition-colors">
-            <PanelLeftClose size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* New work item */}
-      <div className="px-3 py-2">
-        <button className="flex w-full items-center gap-2 rounded-md border border-dashed border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-          <Hash size={13} />
-          New work item
-        </button>
+      <div className="flex h-10 items-center border-b border-border px-3">
+        <span className="truncate text-sm font-semibold">
+          {workspace?.name ?? t('Пространство')}
+        </span>
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {/* Primary nav */}
-        <nav className="space-y-0.5 mb-3">
-          {NAV_ITEMS.map((item) => (
+        <nav className="mb-3 space-y-0.5">
+          {enabled(NAV_ITEMS).map((item) => (
             <button
               key={item.to}
               onClick={() => navigate(item.to)}
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                 isActive(item.to)
-                  ? 'bg-nav-active-bg text-primary font-medium'
+                  ? 'bg-nav-active-bg font-medium text-primary'
                   : 'text-foreground hover:bg-muted',
               )}
             >
               <item.icon size={14} className="shrink-0" />
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </nav>
@@ -147,9 +143,9 @@ export function SidebarPanel({ className }: { className?: string }) {
         <div className="mb-3">
           <button
             onClick={() => setWorkspaceOpen((o) => !o)}
-            className="flex w-full items-center justify-between px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="flex w-full items-center justify-between px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            <span>Workspace</span>
+            <span>{t('Пространство')}</span>
             {workspaceOpen ? (
               <ChevronDown size={12} />
             ) : (
@@ -158,17 +154,22 @@ export function SidebarPanel({ className }: { className?: string }) {
           </button>
           {workspaceOpen && (
             <div className="mt-0.5 space-y-0.5">
-              {WORKSPACE_ITEMS.map((item) => (
+              {enabled(WORKSPACE_ITEMS).map((item) => (
                 <button
-                  key={item.label}
+                  key={item.to}
                   onClick={() => navigate(item.to)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isActive(item.to)
+                      ? 'bg-nav-active-bg font-medium text-primary'
+                      : 'text-foreground hover:bg-muted',
+                  )}
                 >
                   <item.icon
                     size={14}
                     className="shrink-0 text-muted-foreground"
                   />
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </div>
@@ -179,9 +180,9 @@ export function SidebarPanel({ className }: { className?: string }) {
         <div>
           <button
             onClick={() => setProjectsOpen((o) => !o)}
-            className="flex w-full items-center justify-between px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="flex w-full items-center justify-between px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            <span>Projects</span>
+            <span>{t('Проекты')}</span>
             {projectsOpen ? (
               <ChevronDown size={12} />
             ) : (
@@ -192,7 +193,7 @@ export function SidebarPanel({ className }: { className?: string }) {
             <div className="mt-0.5 space-y-0.5">
               {projects.length === 0 && (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                  No projects yet
+                  {t('Проектов пока нет')}
                 </p>
               )}
               {projects.map((project) => {
@@ -208,22 +209,27 @@ export function SidebarPanel({ className }: { className?: string }) {
                         projectActive ? 'bg-nav-active-bg' : 'hover:bg-muted',
                       )}
                     >
-                      <button
-                        onClick={() => toggleProject(project.id)}
-                        className="flex h-6 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                        aria-label={isOpen ? 'Collapse' : 'Expand'}
-                      >
-                        {isOpen ? (
-                          <ChevronDown size={12} />
-                        ) : (
-                          <ChevronRight size={12} />
-                        )}
-                      </button>
+                      {subnav.length > 1 && (
+                        <button
+                          onClick={() => toggleProject(project.id)}
+                          className="flex h-6 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                          aria-label={isOpen ? t('Свернуть') : t('Развернуть')}
+                        >
+                          {isOpen ? (
+                            <ChevronDown size={12} />
+                          ) : (
+                            <ChevronRight size={12} />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() =>
                           navigate(`/projects/${project.id}/work-items`)
                         }
-                        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-sm text-foreground"
+                        className={cn(
+                          'flex min-w-0 flex-1 items-center gap-2 py-1.5 text-sm text-foreground',
+                          subnav.length <= 1 && 'pl-2',
+                        )}
                       >
                         <div
                           className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
@@ -237,9 +243,9 @@ export function SidebarPanel({ className }: { className?: string }) {
                       </button>
                     </div>
 
-                    {isOpen && (
+                    {isOpen && subnav.length > 1 && (
                       <div className="ml-4 border-l border-border pl-2">
-                        {PROJECT_SUBNAV.map((sub) => {
+                        {subnav.map((sub) => {
                           const to = `/projects/${project.id}/${sub.seg}`
                           const active = location.pathname === to
                           return (
@@ -249,7 +255,7 @@ export function SidebarPanel({ className }: { className?: string }) {
                               className={cn(
                                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                                 active
-                                  ? 'bg-nav-active-bg text-primary font-medium'
+                                  ? 'bg-nav-active-bg font-medium text-primary'
                                   : 'text-foreground hover:bg-muted',
                               )}
                             >
@@ -257,7 +263,7 @@ export function SidebarPanel({ className }: { className?: string }) {
                                 size={14}
                                 className="shrink-0 text-muted-foreground"
                               />
-                              {sub.label}
+                              {t(sub.label)}
                             </button>
                           )
                         })}
@@ -268,15 +274,6 @@ export function SidebarPanel({ className }: { className?: string }) {
               })}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Trial banner */}
-      <div className="px-3 pb-3">
-        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-center">
-          <span className="text-xs font-medium text-amber-700">
-            Business trial ends in 12d
-          </span>
         </div>
       </div>
     </div>

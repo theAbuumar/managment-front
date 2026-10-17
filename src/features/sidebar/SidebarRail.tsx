@@ -1,40 +1,51 @@
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { LayoutGrid, Sparkles, Settings } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { enabled, type FeatureFlag } from '@/lib/features'
 
-const RAIL_NAV = [
+interface RailItem {
+  label: string
+  icon: LucideIcon
+  to: string
+  match: (p: string) => boolean
+  feature?: FeatureFlag
+}
+
+const RAIL_NAV: RailItem[] = [
   {
-    label: 'Projects',
+    label: 'Работа',
     icon: LayoutGrid,
     to: '/',
-    match: (p: string) =>
-      p === '/' ||
-      (p.startsWith('/') && !p.startsWith('/ai') && !p.startsWith('/settings')),
+    match: (p) => !p.startsWith('/ai') && !p.startsWith('/settings'),
   },
   {
     label: 'AI',
     icon: Sparkles,
     to: '/ai',
-    match: (p: string) => p.startsWith('/ai'),
+    match: (p) => p.startsWith('/ai'),
+    feature: 'ai',
   },
 ]
 
 export function SidebarRail({ className }: { className?: string }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   return (
     <div
       className={cn(
-        'flex w-14 shrink-0 flex-col items-center border-r border-border bg-sidebar py-2 gap-0.5',
+        'flex w-14 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-sidebar py-2',
         className,
       )}
     >
-      {RAIL_NAV.map((item) => {
+      {enabled(RAIL_NAV).map((item) => {
         const active = item.match(pathname)
         return (
           <button
-            key={item.label}
+            key={item.to}
             onClick={() => navigate(item.to)}
             className={cn(
               'flex w-full flex-col items-center gap-0.5 px-1 py-2 transition-colors',
@@ -44,7 +55,7 @@ export function SidebarRail({ className }: { className?: string }) {
             )}
           >
             <item.icon size={17} />
-            <span className="text-[9px] font-medium">{item.label}</span>
+            <span className="text-[9px] font-medium">{t(item.label)}</span>
           </button>
         )
       })}
@@ -61,7 +72,7 @@ export function SidebarRail({ className }: { className?: string }) {
         )}
       >
         <Settings size={17} />
-        <span className="text-[9px] font-medium">Settings</span>
+        <span className="text-[9px] font-medium">{t('Настройки')}</span>
       </button>
     </div>
   )

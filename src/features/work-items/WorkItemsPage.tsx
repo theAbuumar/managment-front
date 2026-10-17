@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { LayoutGrid, List, AlertCircle, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { getProject, type Project } from '@/api/project'
 import { getStates, type State } from '@/api/state'
 import {
-  getIssues,
+  getAllIssues,
   createIssue,
   updateIssue,
   deleteIssue,
@@ -43,7 +43,20 @@ export function WorkItemsPage() {
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<ViewMode>('board')
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The open issue lives in the URL (?issue=<id>) so notifications, the home page
+  // and deep links can open a specific work item.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('issue')
+  const setSelectedId = (id: string | null) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (id) next.set('issue', id)
+        else next.delete('issue')
+        return next
+      },
+      { replace: true },
+    )
 
   // The panel reads its issue straight from the board's list, so edits made
   // anywhere stay in sync with a single source of truth.
@@ -56,20 +69,16 @@ export function WorkItemsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [p, st, page, mem] = await Promise.all([
+        const [p, st, all, mem] = await Promise.all([
           getProject(slug, projectId),
           getStates(slug, projectId),
-          getIssues(slug, projectId, {
-            sort_by: 'sort_order',
-            order: 'asc',
-            limit: 100,
-          }),
+          getAllIssues(slug, projectId, { sort_by: 'sort_order', order: 'asc' }),
           getWorkspaceMembers(slug).catch(() => []),
         ])
         if (cancelled) return
         setProject(p)
         setStates(st)
-        setIssues(page.data)
+        setIssues(all)
         setMembers(mem)
       } catch (err) {
         if (!cancelled) setError(errMsg(err, 'Failed to load work items'))

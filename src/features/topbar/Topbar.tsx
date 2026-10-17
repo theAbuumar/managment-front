@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
-  Search,
-  HelpCircle,
   Bell,
   ChevronDown,
   Menu,
@@ -18,7 +17,6 @@ import {
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuthStore } from '@/stores/authStore'
+import { signOut } from '@/lib/session'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import {
@@ -37,6 +36,8 @@ import {
 } from '@/api/workspace'
 import { getNotifications } from '@/api/notification'
 import { ProfileDialog } from '@/features/profile/ProfileDialog'
+import { pluralize } from '@/lib/plural'
+import { t as translate } from '@/i18n'
 
 // How often the bell re-checks the unread count while the app is open.
 const NOTIFICATION_POLL_MS = 45_000
@@ -52,10 +53,17 @@ interface WsMeta {
   role: string
 }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-const memberLabel = (n: number) => `${n} Member${n === 1 ? '' : 's'}`
+const ROLE_LABEL: Record<string, () => string> = {
+  owner: () => translate('Владелец'),
+  admin: () => translate('Администратор'),
+  member: () => translate('Участник'),
+  guest: () => translate('Гость'),
+}
+const memberLabel = (n: number) =>
+  pluralize(n, [translate('участник'), translate('участника'), translate('участников')])
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
   const user = useAuthStore((s) => s.user)
@@ -63,8 +71,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
-  const resetWorkspaces = useWorkspaceStore((s) => s.reset)
-  const logout = useAuthStore((s) => s.logout)
   const unreadCount = useNotificationStore((s) => s.unreadCount)
   const setUnreadCount = useNotificationStore((s) => s.setUnreadCount)
 
@@ -73,7 +79,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [meta, setMeta] = useState<Record<string, WsMeta>>({})
 
   const wsInitial = workspace?.name?.[0]?.toUpperCase() ?? 'W'
-  const wsName = workspace?.name ?? 'Workspace'
+  const wsName = workspace?.name ?? t('Пространство')
   const userInitial = user?.display_name?.[0]?.toUpperCase() ?? 'U'
   const otherWorkspaces = workspaces.filter((w) => w.id !== workspace?.id)
 
@@ -135,15 +141,14 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     navigate(path)
   }
 
-  function handleSignOut() {
-    logout()
-    resetWorkspaces()
+  async function handleSignOut() {
+    await signOut()
     navigate('/login')
   }
 
   const currentMeta = workspace ? meta[workspace.slug] : undefined
   const currentSub = [
-    currentMeta?.role ? cap(currentMeta.role) : null,
+    currentMeta?.role ? (ROLE_LABEL[currentMeta.role]?.() ?? currentMeta.role) : null,
     currentMeta ? memberLabel(currentMeta.count) : null,
   ]
     .filter(Boolean)
@@ -206,14 +211,14 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               className="flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
             >
               <Settings size={13} />
-              Settings
+              {t('Настройки')}
             </button>
             <button
               onClick={() => go('/settings/members')}
               className="flex items-center justify-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
             >
               <UserPlus size={13} />
-              Invite members
+              {t('Пригласить')}
             </button>
           </div>
 
@@ -251,11 +256,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => go('/onboarding/workspace')}>
             <Plus size={14} className="mr-2 text-muted-foreground" />
-            Create workspace
+            {t('Создать пространство')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => go('/invitations')}>
             <Mail size={14} className="mr-2 text-muted-foreground" />
-            Workspace invites
+            {t('Мои приглашения')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -263,44 +268,29 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             onClick={handleSignOut}
           >
             <LogOut size={14} className="mr-2" />
-            Sign out
+            {t('Выйти')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Centered search */}
-      <div className="flex flex-1 justify-center">
-        <div className="relative w-full max-w-md">
-          <Search
-            size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            className="h-8 w-full rounded-full border-border bg-muted pl-8 text-sm placeholder:text-muted-foreground focus-visible:ring-1"
-            placeholder="Search"
-          />
-        </div>
-      </div>
+      <div className="flex-1" />
 
       {/* Right actions */}
       <div className="flex shrink-0 items-center gap-0.5">
         <button
           onClick={toggle}
-          aria-label="Toggle theme"
+          aria-label={t('Сменить тему')}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
         >
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
-        <button className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
-          <HelpCircle size={15} />
-        </button>
         <button
           onClick={() => navigate('/notifications')}
           aria-label={
             unreadCount > 0
-              ? `Notifications, ${unreadCount} unread`
-              : 'Notifications'
+              ? t('Уведомления, непрочитанных: {{count}}', { count: unreadCount })
+              : t('Уведомления')
           }
           className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
         >
@@ -335,7 +325,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setProfileOpen(true)}>
               <User size={14} className="mr-2" />
-              Profile
+              {t('Профиль')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -343,7 +333,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               onClick={handleSignOut}
             >
               <LogOut size={14} className="mr-2" />
-              Sign out
+              {t('Выйти')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

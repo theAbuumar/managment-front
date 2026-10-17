@@ -1,46 +1,26 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Settings2,
-  Users,
-  CreditCard,
-  Download,
-  Upload,
-  Clock,
-  Fingerprint,
-  Box,
-  Plug,
-  Network,
-  Users2,
-  BookOpen,
-  Lightbulb,
-  UserRound,
-} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { ArrowLeft, Settings2, Users, Network } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
+import { enabled, type FeatureFlag } from '@/lib/features'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 
-const ADMIN = [
-  { label: 'General', icon: Settings2, to: 'general' },
-  { label: 'Members', icon: Users, to: 'members' },
-  { label: 'Billing and plans', icon: CreditCard, to: 'billing' },
-  { label: 'Imports', icon: Download, to: 'imports' },
-  { label: 'Exports', icon: Upload, to: 'exports' },
-  { label: 'Worklogs', icon: Clock, to: 'worklogs' },
-  { label: 'Identity', icon: Fingerprint, to: 'identity' },
+interface NavItem {
+  label: string
+  icon: LucideIcon
+  to: string
+  feature?: FeatureFlag
+}
+
+const ADMIN: NavItem[] = [
+  { label: 'Общие', icon: Settings2, to: 'general' },
+  { label: 'Участники', icon: Users, to: 'members' },
+  { label: 'Оргструктура', icon: Network, to: 'structure', feature: 'orgStructure' },
 ]
 
-const FEATURES = [
-  { label: 'Projects', icon: Box, to: 'projects' },
-  { label: 'Integrations', icon: Plug, to: 'integrations' },
-  { label: 'Connections', icon: Network, to: 'connections' },
-  { label: 'Teamspaces', icon: Users2, to: 'teamspaces' },
-  { label: 'Wiki', icon: BookOpen, to: 'wiki' },
-  { label: 'Initiatives', icon: Lightbulb, to: 'initiatives' },
-  { label: 'Customers', icon: UserRound, to: 'customers' },
-]
-
-function NavSection({ title, items }: { title: string; items: typeof ADMIN }) {
+function NavSection({ title, items }: { title: string; items: NavItem[] }) {
+  const { t } = useTranslation()
   return (
     <div className="mb-4">
       <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
@@ -61,7 +41,7 @@ function NavSection({ title, items }: { title: string; items: typeof ADMIN }) {
             }
           >
             <item.icon size={15} className="shrink-0" />
-            {item.label}
+            {t(item.label)}
           </NavLink>
         ))}
       </div>
@@ -70,6 +50,7 @@ function NavSection({ title, items }: { title: string; items: typeof ADMIN }) {
 }
 
 export function SettingsLayout() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const workspace = useWorkspaceStore((s) => s.workspace)
   const wsInitial = workspace?.name?.[0]?.toUpperCase() ?? 'W'
@@ -83,7 +64,7 @@ export function SettingsLayout() {
           className="flex items-center gap-2 px-4 py-4 text-base font-semibold text-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={18} />
-          Workspace settings
+          {t('Настройки пространства')}
         </button>
 
         <div className="flex items-center gap-2.5 px-4 pb-4">
@@ -92,18 +73,16 @@ export function SettingsLayout() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-foreground">
-              {workspace?.name ?? 'Workspace'}
+              {workspace?.name ?? t('Пространство')}
             </p>
-            <p className="text-xs text-muted-foreground">Admin</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {workspace?.slug}
+            </p>
           </div>
-          <Badge variant="secondary" className="shrink-0 text-[10px]">
-            Business trial
-          </Badge>
         </div>
 
         <nav className="px-2">
-          <NavSection title="Administration" items={ADMIN} />
-          <NavSection title="Features" items={FEATURES} />
+          <NavSection title={t('Администрирование')} items={enabled(ADMIN)} />
         </nav>
       </aside>
 

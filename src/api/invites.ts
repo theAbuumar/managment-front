@@ -43,3 +43,27 @@ export const acceptInvite = (inviteId: string) =>
 
 export const declineInvite = (inviteId: string) =>
   client.post<unknown, InviteResponseResult>(`/invitations/${inviteId}/decline`)
+
+// ─── Email-token invitations (people invited by address, maybe without an account) ─
+// The invite email links to the SPA page /invites/:token, which uses these.
+
+export interface TokenInvite {
+  id: string
+  workspace_id: string
+  email: string
+  role: MemberRole
+  expires_at: string
+  workspace: { id: string; name: string; slug: string }
+  invited_by: { id: string; display_name: string; email: string }
+}
+
+// Public: inspect an invite before signing in.
+export const getInviteByToken = (token: string) =>
+  client.get<unknown, TokenInvite>(`/invites/${encodeURIComponent(token)}`)
+
+// Requires a session whose email matches the invite (else INVITE_EMAIL_MISMATCH).
+export const acceptInviteByToken = (token: string) =>
+  client.post<
+    unknown,
+    { workspace_id: string; user_id: string; role: MemberRole }
+  >(`/invites/${encodeURIComponent(token)}/accept`)

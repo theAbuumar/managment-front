@@ -1,45 +1,27 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Settings2,
-  Users,
-  Clock,
-  RefreshCw,
-  Layers,
-  PanelsTopLeft,
-  FileText,
-  Inbox,
-  Timer,
-  Flag,
-  Megaphone,
-  CircleDot,
-  Tag,
-  Ruler,
-} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { ArrowLeft, Settings2, Users, CircleDot, Tag } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { enabled, type FeatureFlag } from '@/lib/features'
 import { getProject } from '@/api/project'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 
-const GENERAL = [
-  { label: 'General', icon: Settings2, to: 'general' },
-  { label: 'Members', icon: Users, to: 'members' },
-  { label: 'Worklogs', icon: Clock, to: 'worklogs' },
+interface NavItem {
+  label: string
+  icon: LucideIcon
+  to: string
+  feature?: FeatureFlag
+}
+
+const GENERAL: NavItem[] = [
+  { label: 'Общие', icon: Settings2, to: 'general' },
+  { label: 'Участники', icon: Users, to: 'members', feature: 'projectMembers' },
 ]
-const FEATURES = [
-  { label: 'Cycles', icon: RefreshCw, to: 'cycles' },
-  { label: 'Modules', icon: Layers, to: 'modules' },
-  { label: 'Views', icon: PanelsTopLeft, to: 'views' },
-  { label: 'Pages', icon: FileText, to: 'pages' },
-  { label: 'Intake', icon: Inbox, to: 'intake' },
-  { label: 'Time tracking', icon: Timer, to: 'time-tracking' },
-  { label: 'Milestones', icon: Flag, to: 'milestones' },
-  { label: 'Project Updates', icon: Megaphone, to: 'updates' },
-]
-const WORK = [
-  { label: 'States', icon: CircleDot, to: 'states' },
-  { label: 'Labels', icon: Tag, to: 'labels' },
-  { label: 'Estimates', icon: Ruler, to: 'estimates' },
+const WORK: NavItem[] = [
+  { label: 'Состояния', icon: CircleDot, to: 'states', feature: 'projectStates' },
+  { label: 'Метки', icon: Tag, to: 'labels' },
 ]
 
 function NavSection({
@@ -47,8 +29,9 @@ function NavSection({
   items,
 }: {
   title: string
-  items: typeof GENERAL
+  items: NavItem[]
 }) {
+  const { t } = useTranslation()
   return (
     <div className="mb-4">
       <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
@@ -69,7 +52,7 @@ function NavSection({
             }
           >
             <item.icon size={15} className="shrink-0" />
-            {item.label}
+            {t(item.label)}
           </NavLink>
         ))}
       </div>
@@ -78,6 +61,7 @@ function NavSection({
 }
 
 export function ProjectSettingsLayout() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { projectId } = useParams()
   const workspace = useWorkspaceStore((s) => s.workspace)
@@ -103,7 +87,7 @@ export function ProjectSettingsLayout() {
           className="flex items-center gap-2 px-4 py-4 text-base font-semibold text-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={18} />
-          Project settings
+          {t('Настройки проекта')}
         </button>
 
         <div className="flex items-center gap-2.5 px-4 pb-4">
@@ -112,16 +96,14 @@ export function ProjectSettingsLayout() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-foreground">
-              {name || 'Project'}
+              {name || t('Проект')}
             </p>
-            <p className="text-xs text-muted-foreground">Admin</p>
           </div>
         </div>
 
         <nav className="px-2 pb-6">
-          <NavSection title="General" items={GENERAL} />
-          <NavSection title="Features" items={FEATURES} />
-          <NavSection title="Work-Structure" items={WORK} />
+          <NavSection title={t('Проект')} items={enabled(GENERAL)} />
+          <NavSection title={t('Структура работы')} items={enabled(WORK)} />
         </nav>
       </aside>
 

@@ -1,15 +1,11 @@
 import { useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { SidebarRail } from '@/features/sidebar/SidebarRail'
 import { SidebarPanel } from '@/features/sidebar/SidebarPanel'
-import { AISidebarPanel } from '@/features/sidebar/AISidebarPanel'
 import { Topbar } from '@/features/topbar/Topbar'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 
 function ActivePanel({ className }: { className?: string }) {
-  const { pathname } = useLocation()
-  if (pathname.startsWith('/ai'))
-    return <AISidebarPanel className={className} />
   return <SidebarPanel className={className} />
 }
 

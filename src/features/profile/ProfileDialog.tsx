@@ -18,7 +18,7 @@ import {
   type DeleteChallenge,
 } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
-import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { clearLocalSession } from '@/lib/session'
 
 export function ProfileDialog({
   open,
@@ -169,8 +169,6 @@ function DeactivateAccountDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const navigate = useNavigate()
-  const logout = useAuthStore((s) => s.logout)
-  const resetWorkspaces = useWorkspaceStore((s) => s.reset)
 
   const [step, setStep] = useState<'intro' | 'code'>('intro')
   const [challenge, setChallenge] = useState<DeleteChallenge | null>(null)
@@ -211,10 +209,9 @@ function DeactivateAccountDialog({
     setBusy(true)
     try {
       await confirmAccountDeletion(code)
-      // The account is gone server-side — clear local session + workspace state
-      // before leaving so the protected routes don't flash cached data.
-      logout()
-      resetWorkspaces()
+      // The account is gone server-side (sessions revoked) — clear local session +
+      // workspace state before leaving so protected routes don't flash cached data.
+      clearLocalSession()
       toast.success('Your account has been deleted')
       navigate('/login')
     } catch (err) {

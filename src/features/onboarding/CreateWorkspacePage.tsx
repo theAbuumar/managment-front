@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,30 +14,28 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { createWorkspace } from '@/api/workspace'
+import { ApiError } from '@/api/client'
+import { toSlug } from '@/lib/translit'
+import { errorText } from '@/lib/errorMessages'
+import { t as translate } from '@/i18n'
 import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { toast } from 'sonner'
-
-const toSlug = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 50)
 
 // Short random base36 tail used to make a slug globally unique on collision.
 const randomTail = () => Math.random().toString(36).slice(2, 6)
 
 const schema = z.object({
-  name: z.string().min(1, 'Name your workspace').max(100),
+  name: z.string().trim().min(1, translate('Укажите название')).max(100),
   slug: z
     .string()
-    .min(2, 'URL is too short')
+    .min(2, translate('Слишком короткий идентификатор'))
     .max(50)
-    .regex(/^[a-z0-9-]+$/, 'Lowercase, numbers and hyphens only'),
+    .regex(/^[a-z0-9-]+$/, translate('Только латиница, цифры и дефис')),
 })
 
 export function CreateWorkspacePage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const addWorkspace = useWorkspaceStore((s) => s.addWorkspace)
@@ -64,13 +63,11 @@ export function CreateWorkspacePage() {
         navigate('/')
         return
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to create workspace'
         // Only a slug collision is worth retrying; surface anything else as-is.
-        const isConflict = /slug|taken|already exists|conflict/i.test(message)
+        const isConflict = err instanceof ApiError && err.code === 'CONFLICT'
         if (isConflict && attempt < 4) continue
         form.setValue('slug', candidate)
-        toast.error(message)
+        toast.error(errorText(err, t('Не удалось создать пространство')))
         return
       }
     }
@@ -92,10 +89,10 @@ export function CreateWorkspacePage() {
       <div className="w-full max-w-sm">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">
-            Create your workspace
+            {t('Создайте рабочее пространство')}
           </h1>
           <p className="mt-1 text-base text-muted-foreground">
-            All your work — unified.
+            {t('Например, «Ректорат» или «Экономический факультет».')}
           </p>
         </div>
 
@@ -110,11 +107,12 @@ export function CreateWorkspacePage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Name your workspace <span className="text-red-500">*</span>
+                    {t('Название пространства')}{' '}
+                    <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter workspace name"
+                      placeholder={t('Ректорат университета')}
                       {...field}
                       onChange={(e) => {
                         field.onChange(e)
@@ -135,16 +133,13 @@ export function CreateWorkspacePage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Set your workspace's URL{' '}
+                    {t('Идентификатор для адресов')}{' '}
                     <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
                     <div className="flex items-center overflow-hidden rounded-md border border-border focus-within:ring-1 focus-within:ring-ring">
-                      <span className="shrink-0 border-r border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                        app.plane.so/
-                      </span>
                       <input
-                        placeholder="Type or paste a URL"
+                        placeholder="rektorat"
                         {...field}
                         onChange={(e) =>
                           field.onChange(
@@ -158,7 +153,7 @@ export function CreateWorkspacePage() {
                     </div>
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    You can only edit the slug of the URL
+                    {t('Латиница, цифры и дефис. Заполняется из названия автоматически.')}
                   </p>
                   <FormMessage />
                 </FormItem>
@@ -167,10 +162,12 @@ export function CreateWorkspacePage() {
 
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Creating…' : 'Create workspace'}
+                {form.formState.isSubmitting
+                  ? t('Создаём…')
+                  : t('Создать пространство')}
               </Button>
               <Button type="button" variant="secondary" onClick={goBack}>
-                Go back
+                {t('Назад')}
               </Button>
             </div>
           </form>

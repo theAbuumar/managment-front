@@ -1,6 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
-import { ComingSoon } from '@/components/ComingSoon'
 import { NotFoundPage } from '@/routes/NotFoundPage'
 import { ErrorPage } from '@/routes/ErrorPage'
 import { AuthPage } from '@/features/auth/AuthPage'
@@ -16,73 +15,17 @@ import { ProjectGeneralPage } from '@/features/projects/ProjectGeneralPage'
 import { ProjectLabelsPage } from '@/features/projects/ProjectLabelsPage'
 import { WorkItemsPage } from '@/features/work-items/WorkItemsPage'
 import { WorkspaceInvitesPage } from '@/features/invitations/WorkspaceInvitesPage'
+import { InviteTokenPage } from '@/features/invitations/InviteTokenPage'
 import { NotificationsPage } from '@/features/notifications/NotificationsPage'
 import { YourWorkPage } from '@/features/your-work/YourWorkPage'
 import { HomePage } from '@/features/home/HomePage'
-import {
-  PencilLine,
-  User,
-  Sparkles,
-  BarChart3,
-  Trash2,
-  Settings,
-  RefreshCw,
-  Layers,
-  PanelsTopLeft,
-} from 'lucide-react'
 
-// The settings pages that aren't built yet — each renders inside SettingsLayout.
-const SETTINGS_SOON = [
-  'billing',
-  'imports',
-  'exports',
-  'worklogs',
-  'identity',
-  'projects',
-  'integrations',
-  'connections',
-  'teamspaces',
-  'wiki',
-  'initiatives',
-  'customers',
-].map((path) => ({
-  path,
-  element: (
-    <ComingSoon
-      icon={Settings}
-      title={path[0].toUpperCase() + path.slice(1)}
-      subtitle="This settings section is coming soon."
-    />
-  ),
-}))
-
-// Project-settings sections without a real page yet.
-const PROJECT_SETTINGS_SOON = [
-  'members',
-  'worklogs',
-  'cycles',
-  'modules',
-  'views',
-  'pages',
-  'intake',
-  'time-tracking',
-  'milestones',
-  'updates',
-  'states',
-  'estimates',
-].map((path) => ({
-  path,
-  element: (
-    <ComingSoon
-      icon={Settings}
-      title={path[0].toUpperCase() + path.slice(1)}
-      subtitle="This project setting is coming soon."
-    />
-  ),
-}))
-
+// Only sections with a real page are routed (ADR-019); new pages are added here
+// together with their flag in src/lib/features.ts.
 export const router = createBrowserRouter([
   { path: '/login', element: <AuthPage /> },
+  // Public landing page for the link in an invitation email.
+  { path: '/invites/:token', element: <InviteTokenPage /> },
   {
     element: <ProtectedRoute />,
     children: [
@@ -101,7 +44,6 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="general" replace /> },
           { path: 'general', element: <GeneralPage /> },
           { path: 'members', element: <MembersPage /> },
-          ...SETTINGS_SOON,
         ],
       },
       {
@@ -112,7 +54,6 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="general" replace /> },
           { path: 'general', element: <ProjectGeneralPage /> },
           { path: 'labels', element: <ProjectLabelsPage /> },
-          ...PROJECT_SETTINGS_SOON,
         ],
       },
       {
@@ -121,107 +62,16 @@ export const router = createBrowserRouter([
         errorElement: <ErrorPage />,
         children: [
           { index: true, element: <HomePage /> },
-          {
-            path: 'drafts',
-            element: (
-              <ComingSoon
-                icon={PencilLine}
-                title="Drafts"
-                subtitle="Unsaved work items you started."
-              />
-            ),
-          },
           { path: 'your-work', element: <YourWorkPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
-          {
-            path: 'ai',
-            element: (
-              <ComingSoon
-                icon={Sparkles}
-                title="AI"
-                subtitle="Your AI assistant panel. Interface only for now."
-              />
-            ),
-          },
-          {
-            path: 'analytics',
-            element: (
-              <ComingSoon
-                icon={BarChart3}
-                title="Analytics"
-                subtitle="Charts and reports across your projects."
-              />
-            ),
-          },
-          {
-            path: 'trash',
-            element: (
-              <ComingSoon
-                icon={Trash2}
-                title="Trash"
-                subtitle="Deleted items you can restore."
-              />
-            ),
-          },
           // Canonical path — the backend's invite emails link here.
           { path: 'invitations', element: <WorkspaceInvitesPage /> },
-          // Back-compat with the old placeholder link.
           {
             path: 'workspace-invites',
             element: <Navigate to="/invitations" replace />,
           },
-          {
-            path: 'profile',
-            element: (
-              <ComingSoon
-                icon={User}
-                title="Profile"
-                subtitle="Your account details and preferences."
-              />
-            ),
-          },
           { path: 'projects/:id/work-items', element: <WorkItemsPage /> },
-          {
-            path: 'projects/:id/cycles',
-            element: (
-              <ComingSoon
-                icon={RefreshCw}
-                title="Cycles"
-                subtitle="Time-boxed sprints with progress tracking."
-              />
-            ),
-          },
-          {
-            path: 'projects/:id/modules',
-            element: (
-              <ComingSoon
-                icon={Layers}
-                title="Modules"
-                subtitle="Group work by feature or deliverable."
-              />
-            ),
-          },
-          {
-            path: 'projects/:id/views',
-            element: (
-              <ComingSoon
-                icon={PanelsTopLeft}
-                title="Views"
-                subtitle="Saved filtered views for this project."
-              />
-            ),
-          },
           { path: 'projects-list', element: <ProjectsPage /> },
-          {
-            path: 'more',
-            element: (
-              <ComingSoon
-                icon={BarChart3}
-                title="More"
-                subtitle="Additional workspace features."
-              />
-            ),
-          },
         ],
       },
     ],
