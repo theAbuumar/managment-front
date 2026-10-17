@@ -1,40 +1,48 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Settings, Globe } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Settings } from 'lucide-react'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  getProject,
-  updateProject,
-  deleteProject,
-  type Project,
-} from '@/api/project'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { getProject, updateProject, deleteProject, type Project } from '@/api/project'
+import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
+import { getDepartments, type Department } from '@/api/department'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { errorText } from '@/lib/errorMessages'
+import { dateInputToIso, isoToDateInput } from '@/lib/dates'
+import { ProjectFields } from './ProjectFields'
+import { EMPTY_PROJECT, type ProjectFormValue } from './projectForm'
 
-// ponytail: backend has no timezone field — display-only.
-const TIMEZONES = Intl.supportedValuesOf('timeZone')
+function toForm(p: Project, timeZone: string): ProjectFormValue {
+  return {
+    ...EMPTY_PROJECT,
+    name: p.name,
+    identifier: p.identifier,
+    description: p.description ?? '',
+    status: p.status,
+    visibility: p.visibility,
+    start: isoToDateInput(p.start_date, timeZone),
+    target: isoToDateInput(p.target_date, timeZone),
+    department_id: p.department_id ?? '',
+    lead_id: p.lead_id ?? '',
+    icon: p.icon ?? '📁',
+    color: p.color ?? '#3B82F6',
+  }
+}
 
 export function ProjectGeneralPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { projectId } = useParams()
   const workspace = useWorkspaceStore((s) => s.workspace)
+  const timeZone = workspace?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
   const [project, setProject] = useState<Project | null>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [network, setNetwork] = useState('public') // ponytail: mock, not in API
-  const [tz, setTz] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [value, setValue] = useState<ProjectFormValue>(EMPTY_PROJECT)
+  const [members, setMembers] = useState<WorkspaceMember[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -42,13 +50,19 @@ export function ProjectGeneralPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      setLoading(true)
       if (!workspace || !projectId) return
-      const p = await getProject(workspace.slug, projectId).catch(() => null)
-      if (cancelled || !p) return
-      setProject(p)
-      setName(p.name)
-      setDescription(p.description ?? '')
+      const [p, mem, dep] = await Promise.all([
+        getProject(workspace.slug, projectId).catch(() => null),
+        getWorkspaceMembers(workspace.slug).catch(() => []),
+        getDepartments(workspace.slug).catch(() => []),
+      ])
+      if (cancelled) return
+      setMembers(mem)
+      setDepartments(dep)
+      if (p) {
+        setProject(p)
+        setValue(toForm(p, timeZone))
+      }
     })().finally(() => {
       if (!cancelled) setLoading(false)
     })
@@ -58,17 +72,26 @@ export function ProjectGeneralPage() {
   }, [workspace?.slug, projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
-    if (!workspace || !projectId || !name.trim()) return
+    if (!workspace || !projectId || !value.name.trim()) return
     setBusy(true)
     try {
       const updated = await updateProject(workspace.slug, projectId, {
-        name: name.trim(),
-        description: description.trim() || null,
+        name: value.name.trim(),
+        description: value.description.trim() || null,
+        status: value.status,
+        visibility: value.visibility,
+        start_date: dateInputToIso(value.start),
+        target_date: dateInputToIso(value.target),
+        department_id: value.department_id || null,
+        lead_id: value.lead_id || null,
+        icon: value.icon,
+        color: value.color,
       })
       setProject(updated)
-      toast.success('Project updated')
+      setValue(toForm(updated, timeZone))
+      toast.success(t('Проект сохранён'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update')
+      toast.error(errorText(err, t('Не удалось сохранить проект')))
     } finally {
       setBusy(false)
     }
@@ -78,10 +101,10 @@ export function ProjectGeneralPage() {
     if (!workspace || !projectId) return
     try {
       await deleteProject(workspace.slug, projectId)
-      toast.success('Project deleted')
+      toast.success(t('Проект перемещён в корзину'))
       navigate('/projects-list')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+      toast.error(errorText(err, t('Не удалось удалить проект')))
     }
   }
 
@@ -89,145 +112,54 @@ export function ProjectGeneralPage() {
     <div>
       <div className="flex h-12 items-center gap-2 border-b border-border px-6 text-sm font-medium">
         <Settings size={16} />
-        General
+        {t('Общие')}
       </div>
 
       {loading ? (
-        <div className="max-w-3xl px-8 py-6">
-          <Skeleton className="mb-6 h-40 rounded-lg" />
-          <div className="mb-6 space-y-2 pl-1">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-4 w-28" />
-          </div>
-          <div className="mb-4 space-y-1.5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-          <div className="mb-4 space-y-1.5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-          <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="space-y-1.5">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-9 w-full" />
-              </div>
+        <div className="max-w-3xl space-y-4 px-8 py-6">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-9 w-full" />
             ))}
-          </div>
-          <div className="flex gap-3">
-            <Skeleton className="h-9 w-32" />
-            <Skeleton className="h-9 w-32" />
           </div>
         </div>
       ) : (
-      <div className="max-w-3xl px-8 py-6">
-        {/* Cover + identity */}
-        <div className="relative mb-6 h-40 rounded-lg bg-gradient-to-r from-slate-700 via-rose-600 to-sky-700">
-          <span className="absolute right-3 bottom-3 rounded bg-black/60 px-2 py-1 text-xs text-white">
-            Change cover
-          </span>
-          <div className="absolute -bottom-4 left-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md bg-amber-400 text-2xl">
-              📊
+        <div className="max-w-3xl px-8 py-6">
+          <ProjectFields value={value} onChange={setValue} members={members} departments={departments} mode="edit" />
+
+          <div className="mt-6 flex items-center gap-3">
+            <Button onClick={save} disabled={busy || !value.name.trim()}>
+              {busy ? t('Сохраняем…') : t('Сохранить')}
+            </Button>
+          </div>
+
+          <div className="mt-10 flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+            <div>
+              <p className="text-sm font-semibold">{t('Удалить проект')}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('Проект и его задачи перемещаются в корзину. Восстановить можно в течение 30 дней.')}
+              </p>
             </div>
+            <Button
+              variant="outline"
+              className="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setConfirmOpen(true)}
+            >
+              {t('Удалить')}
+            </Button>
           </div>
         </div>
-        <div className="mb-6 pl-1">
-          <p className="text-lg font-semibold">{project?.name}</p>
-          <p className="text-sm text-muted-foreground">
-            {project?.identifier} ·{' '}
-            {network === 'public' ? 'Public' : 'Private'}
-          </p>
-        </div>
-
-        {/* Fields */}
-        <div className="mb-4">
-          <label className="mb-1.5 block text-sm text-muted-foreground">
-            Project name
-          </label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-
-        <div className="mb-4">
-          <label className="mb-1.5 block text-sm text-muted-foreground">
-            Description
-          </label>
-          <Textarea
-            rows={4}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-sm text-muted-foreground">
-              Project ID
-            </label>
-            <Input disabled value={project?.identifier ?? ''} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm text-muted-foreground">
-              Network
-            </label>
-            {/* ponytail: mock — network not in project API */}
-            <Select value={network} onValueChange={setNetwork}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">
-                  <span className="flex items-center gap-2">
-                    <Globe size={14} />
-                    Public
-                  </span>
-                </SelectItem>
-                <SelectItem value="private">
-                  <span className="flex items-center gap-2">
-                    <Globe size={14} />
-                    Private
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm text-muted-foreground">
-              Project Timezone
-            </label>
-            <Select value={tz} onValueChange={setTz}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {TIMEZONES.map((z) => (
-                  <SelectItem key={z} value={z}>
-                    {z}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={busy || !name.trim()}>
-            {busy ? 'Updating…' : 'Update project'}
-          </Button>
-          <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
-            Delete project
-          </Button>
-        </div>
-      </div>
       )}
 
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Delete project?"
-        description="This permanently deletes the project and its work items."
-        confirmLabel="Delete"
+        title={t('Удалить проект «{{name}}»?', { name: project?.name ?? '' })}
+        description={t('Проект и все его задачи будут перемещены в корзину.')}
+        confirmLabel={t('Удалить')}
+        cancelLabel={t('Отмена')}
         onConfirm={remove}
       />
     </div>

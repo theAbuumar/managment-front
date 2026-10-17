@@ -62,7 +62,7 @@ export const createProject = (slug: string, data: ProjectInput) =>
 export const updateProject = (
   slug: string,
   id: string,
-  data: Partial<Omit<ProjectInput, 'identifier' | 'member_ids'>> & {
+  data: Partial<Omit<ProjectInput, 'identifier' | 'member_ids' | 'description'>> & {
     description?: string | null
     is_archived?: boolean
   },
