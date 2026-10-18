@@ -1,0 +1,34 @@
+# Стенд (Ф13 13.D3): статика фронта и API на одном адресе (ADR-003).
+#
+# SITE_URL — адрес стенда:
+#   https://tasks.example.edu — облако: Caddy сам получит сертификат Let's Encrypt
+#                               (нужны DNS-запись на сервер и открытые порты 80/443);
+#   http://localhost          — ноутбук, без HTTPS.
+# API_UPSTREAM — бэк внутри сети compose.
+
+{$SITE_URL:http://localhost} {
+	# API, файлы локального хранилища, проверка здоровья и Swagger — на бэк.
+	# Поток событий (SSE) Caddy отдаёт без буферизации сам.
+	@backend path /api/* /internal/storage/* /health /docs /docs/*
+	handle @backend {
+		reverse_proxy {$API_UPSTREAM:api:3000}
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+			X-Frame-Options DENY
+		}
+		# Ассеты с хэшем в имени кэшируются надолго, всё остальное (index.html)
+		# проверяется при каждом открытии, чтобы новая версия видна сразу.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@other not path /assets/*
+		header @other Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

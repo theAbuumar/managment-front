@@ -2,6 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { toast } from 'sonner'
+// Inter is bundled with the app (not Google Fonts) so the stand works offline (13.D3).
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/600.css'
+import '@fontsource/inter/700.css'
 import './index.css'
 import '@/i18n'
 import { t } from '@/i18n'
@@ -39,7 +44,10 @@ async function consumeOAuthRedirect(): Promise<boolean> {
   history.replaceState(null, '', window.location.pathname)
 
   if (error) {
-    setTimeout(() => toast.error(t('Не удалось войти: {{error}}', { error })), 0)
+    setTimeout(
+      () => toast.error(t('Не удалось войти: {{error}}', { error })),
+      0,
+    )
     return true
   }
 
@@ -55,7 +63,10 @@ async function consumeOAuthRedirect(): Promise<boolean> {
   if (workspaces.length > 0)
     useWorkspaceStore.getState().setWorkspace(workspaces[0])
   if (!user) {
-    setTimeout(() => toast.error(t('Вход выполнен, но профиль не загрузился')), 0)
+    setTimeout(
+      () => toast.error(t('Вход выполнен, но профиль не загрузился')),
+      0,
+    )
   }
   const next = takeNextPath()
   history.replaceState(
