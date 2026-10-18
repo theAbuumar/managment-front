@@ -79,6 +79,14 @@ const ERROR_MESSAGES: Record<string, () => string> = {
     t(
       'Файл не похож на изображение PNG, JPEG или WebP до 2 МБ. Выберите другой.',
     ),
+  FILE_TYPE_NOT_ALLOWED: () =>
+    t(
+      'Программы и скрипты прикладывать нельзя. Приложите документ, таблицу или изображение.',
+    ),
+  FILE_CONTENT_MISMATCH: () =>
+    t(
+      'Содержимое файла не совпадает с его расширением. Приложите исходный документ.',
+    ),
 }
 
 export function getFriendlyMessage(code?: string): string {

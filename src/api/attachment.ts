@@ -1,6 +1,7 @@
 import axios from 'axios'
 import client from './client'
 import { t } from '@/i18n'
+import { getFriendlyMessage } from '@/lib/errorMessages'
 
 // Issue attachments (Ф4 4.F5). Bytes never pass through the API: registering a
 // file returns a presigned upload slot, the browser PUTs the bytes there, and the
@@ -85,11 +86,28 @@ export async function uploadAttachment(
       headers: slot.upload.headers,
       onUploadProgress: (e) => onProgress?.(e.total ? e.loaded / e.total : 0),
     })
-  } catch {
+  } catch (err) {
     await deleteAttachment(slug, projectId, slot.attachment.id).catch(
       () => undefined,
     )
-    throw new Error(t('Не удалось загрузить «{{name}}»', { name: file.name }))
+    // The storage refuses programs and files that are not what their name says
+    // (12.B6): say so instead of a bare «could not upload».
+    const code = axios.isAxiosError(err)
+      ? (err.response?.data as { error?: { code?: string } } | undefined)?.error
+          ?.code
+      : undefined
+    if (code === 'FILE_TYPE_NOT_ALLOWED' || code === 'FILE_CONTENT_MISMATCH') {
+      throw new Error(
+        t('«{{name}}»: {{reason}}', {
+          name: file.name,
+          reason: getFriendlyMessage(code),
+        }),
+        { cause: err },
+      )
+    }
+    throw new Error(t('Не удалось загрузить «{{name}}»', { name: file.name }), {
+      cause: err,
+    })
   }
   onProgress?.(1)
   return slot.attachment
