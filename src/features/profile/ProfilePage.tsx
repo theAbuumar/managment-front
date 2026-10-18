@@ -41,6 +41,7 @@ import { errorText } from '@/lib/errorMessages'
 import { fullName } from '@/lib/people'
 import { browserTimeZone, timeZoneLabel } from '@/lib/timezones'
 import { LANGUAGES } from '@/i18n'
+import { TelegramSection } from './TelegramSection'
 
 // Profile page (Ф3 3.F1): ФИО, phone, language, time zone and avatar. Position and
 // department belong to the workspace's org structure and are set by an admin, so
@@ -376,6 +377,8 @@ export function ProfilePage() {
               </dl>
             </Section>
           )}
+
+          <TelegramSection />
 
           {/* Danger zone */}
           <div className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">

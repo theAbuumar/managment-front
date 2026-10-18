@@ -118,3 +118,23 @@ export interface AuthProviders {
 
 export const getAuthProviders = () =>
   client.get<unknown, AuthProviders>('/auth/providers')
+
+// ─── Connected login methods (auth_tz.md §10; Telegram in the profile — 13.P5) ─
+
+export interface Identity {
+  id: string
+  provider: 'email' | 'google' | 'github' | 'telegram'
+  provider_email: string | null
+  created_at: string
+}
+
+export const listIdentities = () =>
+  client.get<unknown, Identity[]>('/auth/identities')
+
+// With the token from telegramInit(): answers TELEGRAM_NOT_CONFIRMED
+// (details.status 'pending') until the user confirms in the bot — poll it.
+export const linkTelegram = (token: string) =>
+  client.post<unknown, Identity>('/auth/identities/telegram/link', { token })
+
+export const unlinkIdentity = (provider: Identity['provider']) =>
+  client.delete<unknown, void>(`/auth/identities/${provider}`)
