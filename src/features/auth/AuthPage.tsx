@@ -415,6 +415,9 @@ function AuthForm({
 function DemoLogin() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  // A deep link opened before signing in (email, Telegram) comes back here too.
+  const [params] = useSearchParams()
+  const next = safeNext(params.get('next'))
   const setAuth = useAuthStore((s) => s.setAuth)
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
@@ -452,7 +455,7 @@ function DemoLogin() {
       const list = await getWorkspaces()
       setWorkspaces(list)
       if (list[0]) setWorkspace(list[0])
-      navigate('/')
+      navigate(next ?? '/', { replace: Boolean(next) })
     } catch (err) {
       toast.error(errorText(err))
     } finally {

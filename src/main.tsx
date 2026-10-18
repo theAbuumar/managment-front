@@ -134,6 +134,14 @@ async function bootstrap() {
   if (!fromOAuth && !useAuthStore.getState().token) {
     await refreshSession()
   }
+  // Signed in, but the stored workspace list is gone (cleared site data): load it,
+  // or the guard would send a member of a workspace to create a new one.
+  const store = useWorkspaceStore.getState()
+  if (!fromOAuth && useAuthStore.getState().token && !store.workspace) {
+    const workspaces = await getWorkspaces().catch(() => [])
+    store.setWorkspaces(workspaces)
+    if (workspaces.length > 0) store.setWorkspace(workspaces[0])
+  }
 }
 
 bootstrap().finally(() => {

@@ -32,7 +32,9 @@ export const verifyEmailCode = (email: string, code: string) =>
   client.post<unknown, AuthResponse>('/auth/email/otp/verify', { email, code })
 
 // Revoke the refresh token server-side (the cookie is cleared by the response).
-export const logout = () => client.post<unknown, void>('/auth/logout')
+// The refresh cookie identifies the session; the empty body keeps older API
+// versions (which required one) from rejecting the sign-out.
+export const logout = () => client.post<unknown, void>('/auth/logout', {})
 
 // Current user for the stored token (used after an OAuth redirect).
 export const getMe = () => client.get<unknown, AuthUser>('/auth/me')

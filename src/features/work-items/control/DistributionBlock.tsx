@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CheckCircle2, Send, ChevronRight } from 'lucide-react'
@@ -16,6 +16,7 @@ import {
   type Issue,
 } from '@/api/issue'
 import type { State } from '@/api/state'
+import { useRealtime } from '@/lib/realtime'
 
 // Сводный прогресс рассылки (Ф6 6.F2): on the parent of a distribution, one row
 // per department — who executes it, where it stands, the deadline — with a jump
@@ -44,6 +45,7 @@ export function DistributionBlock({
     issue.distribution ?? null,
   )
   const [closing, setClosing] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
 
   // Rows of a board/list don't carry the progress; fetch it (and refresh on change).
   useEffect(() => {
@@ -54,7 +56,20 @@ export function DistributionBlock({
     return () => {
       cancelled = true
     }
-  }, [slug, projectId, issue.id, issue.updated_at])
+  }, [slug, projectId, issue.id, issue.updated_at, reloadTick])
+
+  // A department hands in or is accepted: its copy changes, not this parent, so
+  // reload the summary on live events about the copies (8.F1; found by E2E, 12.F2).
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => clearTimeout(reloadTimer.current ?? undefined), [])
+  useRealtime((message) => {
+    const touched =
+      message.type === 'resync' ||
+      progress?.items.some((item) => item.issue_id === message.issue_id)
+    if (!touched) return
+    clearTimeout(reloadTimer.current ?? undefined)
+    reloadTimer.current = setTimeout(() => setReloadTick((n) => n + 1), 300)
+  })
 
   if (!progress) {
     return (
