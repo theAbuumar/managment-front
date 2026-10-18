@@ -93,3 +93,37 @@ export const markAllNotificationsRead = (slug: string) =>
   client.post<unknown, { updated: number }>(
     `/workspaces/${slug}/notifications/read-all`,
   )
+
+// ─── Personal notification settings (8.B2) ────────────────────────────────────
+
+export type NotificationGroup = 'assigned' | 'review' | 'deadlines' | 'escalation'
+export type ChannelMatrix = Record<NotificationGroup, boolean>
+
+/** Which events go to Telegram / email and quiet hours; in-app is always on. */
+export interface NotificationSettings {
+  telegram: ChannelMatrix
+  /** The fallback channel: used when the message does not go to Telegram. */
+  email: ChannelMatrix
+  /** Local hours (profile time zone, else the workspace one). */
+  quiet_hours: { enabled: boolean; from: number; to: number }
+  /** Channels that can reach the user at all. */
+  channels: { telegram: boolean; email: boolean }
+  groups: NotificationGroup[]
+}
+
+export type NotificationSettingsPatch = {
+  telegram?: Partial<ChannelMatrix>
+  email?: Partial<ChannelMatrix>
+  quiet_hours?: Partial<NotificationSettings['quiet_hours']>
+}
+
+export const getNotificationSettings = () =>
+  client.get<unknown, NotificationSettings>('/auth/me/notification-settings')
+
+export const updateNotificationSettings = (patch: NotificationSettingsPatch) =>
+  client.put<unknown, NotificationSettings>('/auth/me/notification-settings', patch)
+
+export const sendTestNotification = () =>
+  client.post<unknown, { delivered_to: 'telegram' | 'email' | null }>(
+    '/auth/me/notification-settings/test',
+  )
