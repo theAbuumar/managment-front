@@ -219,6 +219,7 @@ export function IssueCard({
   onDragStart,
   onDragEnd,
   dragging,
+  readOnly = false,
 }: {
   issue: Issue
   project: Project | null
@@ -232,6 +233,8 @@ export function IssueCard({
   onDragStart: () => void
   onDragEnd: () => void
   dragging: boolean
+  /** Guest: not draggable, no «⋯» menu (12.B4). */
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const identifier = project ? `${project.identifier}-${issue.sequence_id}` : `#${issue.sequence_id}`
@@ -258,7 +261,7 @@ export function IssueCard({
 
   return (
     <div
-      draggable
+      draggable={!readOnly}
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', issue.id)
         e.dataTransfer.effectAllowed = 'move'
@@ -307,17 +310,21 @@ export function IssueCard({
               <Link2 size={14} className="mr-2" />
               {t('Скопировать ссылку')}
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-              }}
-            >
-              <Trash2 size={14} className="mr-2" />
-              {t('Удалить')}
-            </DropdownMenuItem>
+            {!readOnly && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete()
+                  }}
+                >
+                  <Trash2 size={14} className="mr-2" />
+                  {t('Удалить')}
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

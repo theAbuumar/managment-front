@@ -273,6 +273,8 @@ export function IssueDetailPanel({
   const attachedLabelIds = issue.labels.map((l) => l.label_id)
   const isAssignment = issue.kind === 'assignment'
   const myRole = member(currentUserId ?? null)?.role
+  // A guest only reads (12.B4); the backend refuses their edits anyway.
+  const readOnly = myRole === 'guest'
   const isReviewer =
     myRole === 'owner' || myRole === 'admin' || (issue.controller_id ?? issue.created_by_id) === currentUserId
   // Assignments' deadlines move through the controller (Ф5 5.B5).
@@ -478,13 +480,15 @@ export function IssueDetailPanel({
             >
               <Link2 size={16} />
             </button>
-            <button
-              onClick={handleDelete}
-              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              title={t('Удалить задачу')}
-            >
-              <Trash2 size={16} />
-            </button>
+            {!readOnly && (
+              <button
+                onClick={handleDelete}
+                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                title={t('Удалить задачу')}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -593,6 +597,7 @@ export function IssueDetailPanel({
               loading={feedLoading}
               currentUserId={currentUserId}
               isAdmin={myRole === 'owner' || myRole === 'admin'}
+              readOnly={readOnly}
               onChanged={refreshFeed}
             />
 
@@ -618,6 +623,7 @@ export function IssueDetailPanel({
                 </TabsList>
 
                 <TabsContent value="comments" className="mt-4">
+                  {!readOnly && (
                   <div className="mb-5 flex flex-col gap-2">
                     <Textarea
                       value={newComment}
@@ -634,6 +640,7 @@ export function IssueDetailPanel({
                       </Button>
                     </div>
                   </div>
+                  )}
 
                   {feedLoading ? (
                     <div className="space-y-3">
@@ -952,7 +959,8 @@ export function IssueDetailPanel({
                     </button>
                   </div>
                 ))}
-                <PopoverPrimitive.Root>
+                {!readOnly && (
+<PopoverPrimitive.Root>
                   <PopoverPrimitive.Trigger asChild>
                     <button className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent">
                       <UserPlus size={13} /> {t('Добавить исполнителя')}
@@ -973,6 +981,7 @@ export function IssueDetailPanel({
                     />
                   </PopContent>
                 </PopoverPrimitive.Root>
+                )}
               </div>
             </PropRow>
 
@@ -999,7 +1008,8 @@ export function IssueDetailPanel({
                     ))}
                   </div>
                 )}
-                <PopoverPrimitive.Root>
+                {!readOnly && (
+<PopoverPrimitive.Root>
                   <PopoverPrimitive.Trigger asChild>
                     <button className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent">
                       <Plus size={13} /> {t('Добавить метку')}
@@ -1020,6 +1030,7 @@ export function IssueDetailPanel({
                     />
                   </PopContent>
                 </PopoverPrimitive.Root>
+                )}
               </div>
             </PropRow>
 

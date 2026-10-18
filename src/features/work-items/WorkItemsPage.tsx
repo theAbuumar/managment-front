@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useReadOnly } from '@/stores/summaryStore'
 import { ApiError } from '@/api/client'
 import { errorText } from '@/lib/errorMessages'
 import { deadlineInfo } from '@/lib/deadline'
@@ -57,6 +58,8 @@ export function WorkItemsPage() {
   const workspace = useWorkspaceStore((s) => s.workspace)
   const slug = workspace?.slug
   const me = useAuthStore((s) => s.user?.id)
+  // A guest only reads (12.B4): no create, distribute or drag-and-drop.
+  const readOnly = useReadOnly()
   const timeZone = workspace?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [quick, setQuick] = useState<QuickFilter>('all')
   // Hand-in dialog opened from a drag to "На проверке" / "Готово".
@@ -369,6 +372,7 @@ export function WorkItemsPage() {
           </div>
 
           {/* One assignment for several departments (6.F1) */}
+          {!readOnly && (
           <Button
             size="sm"
             variant="outline"
@@ -379,8 +383,10 @@ export function WorkItemsPage() {
             <Send size={15} />
             <span className="hidden sm:inline">{t('Разослать')}</span>
           </Button>
+          )}
 
           {/* Add work item */}
+          {!readOnly && (
           <Button
             size="sm"
             onClick={() => setCreateOpen(true)}
@@ -389,6 +395,7 @@ export function WorkItemsPage() {
             <Plus size={15} />
             <span className="hidden sm:inline">{t('Создать')}</span>
           </Button>
+          )}
         </div>
       </div>
 
@@ -454,6 +461,7 @@ export function WorkItemsPage() {
             onPriorityChange={handlePriority}
             onAssigneeToggle={handleAssigneeToggle}
             onDelete={handleDelete}
+            readOnly={readOnly}
           />
         ) : (
           <ListView
@@ -463,6 +471,7 @@ export function WorkItemsPage() {
             onCreate={handleCreate}
             onOpen={(issue) => setSelectedId(issue.id)}
             onDelete={handleDelete}
+            readOnly={readOnly}
           />
         )}
       </div>

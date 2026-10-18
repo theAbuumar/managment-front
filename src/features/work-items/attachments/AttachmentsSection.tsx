@@ -42,6 +42,7 @@ export function AttachmentsSection({
   loading,
   currentUserId,
   isAdmin,
+  readOnly = false,
   onChanged,
 }: {
   slug: string
@@ -51,6 +52,8 @@ export function AttachmentsSection({
   loading: boolean
   currentUserId?: string
   isAdmin: boolean
+  /** Guest: list and download only (12.B4). */
+  readOnly?: boolean
   onChanged: () => void
 }) {
   const { t } = useTranslation()
@@ -94,7 +97,8 @@ export function AttachmentsSection({
           <ul className="mb-3 space-y-1.5">
             {attachments.map((a) => {
               const canPreview = !!a.download_url && (isImage(a) || isPdf(a))
-              const canDelete = isAdmin || a.uploaded_by_id === currentUserId
+              const canDelete =
+                !readOnly && (isAdmin || a.uploaded_by_id === currentUserId)
               const Icon = isImage(a)
                 ? ImageIcon
                 : isPdf(a)
@@ -169,11 +173,16 @@ export function AttachmentsSection({
         )
       )}
 
-      <FileDropzone
-        onFiles={addFiles}
-        uploads={items}
-        compact={attachments.length > 0}
-      />
+      {!readOnly && (
+        <FileDropzone
+          onFiles={addFiles}
+          uploads={items}
+          compact={attachments.length > 0}
+        />
+      )}
+      {readOnly && attachments.length === 0 && !loading && (
+        <p className="text-sm text-muted-foreground">{t('Файлов нет.')}</p>
+      )}
 
       <PreviewDialog attachment={preview} onClose={() => setPreview(null)} />
       <ConfirmDialog

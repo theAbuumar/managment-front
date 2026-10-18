@@ -24,6 +24,8 @@ interface BoardViewProps {
     alreadyAssigned: boolean,
   ) => void
   onDelete: (issue: Issue) => void
+  /** Guest: no create, no drag-and-drop, no card menu (12.B4). */
+  readOnly?: boolean
 }
 
 export function BoardView({
@@ -37,6 +39,7 @@ export function BoardView({
   onPriorityChange,
   onAssigneeToggle,
   onDelete,
+  readOnly = false,
 }: BoardViewProps) {
   const { t } = useTranslation()
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -67,7 +70,7 @@ export function BoardView({
               if (!e.currentTarget.contains(e.relatedTarget as Node))
                 setDragOver((s) => (s === state.id ? null : s))
             }}
-            onDrop={() => handleDrop(state.id)}
+            onDrop={() => !readOnly && handleDrop(state.id)}
             className={cn(
               'flex max-h-full w-72 shrink-0 flex-col rounded-xl border border-transparent bg-muted/40 transition-colors',
               // "На проверке" stands out: that's where the controller looks.
@@ -107,6 +110,7 @@ export function BoardView({
                   states={states}
                   members={members}
                   onOpen={() => onOpen(issue)}
+                  readOnly={readOnly}
                   dragging={draggingId === issue.id}
                   onDragStart={() => setDraggingId(issue.id)}
                   onDragEnd={() => {
@@ -138,6 +142,7 @@ export function BoardView({
             </div>
 
             {/* Column footer add */}
+            {!readOnly && (
             <button
               type="button"
               onClick={() =>
@@ -155,6 +160,7 @@ export function BoardView({
                 </>
               )}
             </button>
+            )}
           </div>
         )
       })}

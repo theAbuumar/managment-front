@@ -23,6 +23,8 @@ interface ListViewProps {
   onCreate: (stateId: string, title: string) => void
   onOpen: (issue: Issue) => void
   onDelete: (issue: Issue) => void
+  /** Guest: no create, no row menu (12.B4). */
+  readOnly?: boolean
 }
 
 function IssueRow({
@@ -36,7 +38,8 @@ function IssueRow({
   group: State['group']
   project: Project | null
   onOpen: () => void
-  onDelete: () => void
+  /** Absent for a guest: the row has no menu (12.B4). */
+  onDelete?: () => void
 }) {
   const { t } = useTranslation()
   const meta = PRIORITY_CONFIG[issue.priority]
@@ -63,6 +66,7 @@ function IssueRow({
           {issue.assignees.length > 1 && <span>+{issue.assignees.length - 1}</span>}
         </span>
       )}
+      {onDelete && (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -86,11 +90,20 @@ function IssueRow({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </div>
   )
 }
 
-export function ListView({ states, issues, project, onCreate, onOpen, onDelete }: ListViewProps) {
+export function ListView({
+  states,
+  issues,
+  project,
+  onCreate,
+  onOpen,
+  onDelete,
+  readOnly = false,
+}: ListViewProps) {
   const { t } = useTranslation()
   const [composerFor, setComposerFor] = useState<string | null>(null)
 
@@ -124,7 +137,7 @@ export function ListView({ states, issues, project, onCreate, onOpen, onDelete }
                   group={state.group}
                   project={project}
                   onOpen={() => onOpen(issue)}
-                  onDelete={() => onDelete(issue)}
+                  onDelete={readOnly ? undefined : () => onDelete(issue)}
                 />
               ))}
 
@@ -138,7 +151,7 @@ export function ListView({ states, issues, project, onCreate, onOpen, onDelete }
                 </div>
               )}
 
-              {groupIssues.length === 0 && composerFor !== state.id && (
+              {!readOnly && groupIssues.length === 0 && composerFor !== state.id && (
                 <button
                   type="button"
                   onClick={() => setComposerFor(state.id)}

@@ -1,5 +1,6 @@
 import client from './client'
 import type { Issue, UserBrief } from './issue'
+import type { MemberRole } from './workspace'
 
 // Execution control (Ф5): hand-in for review, controller decisions,
 // "Ознакомлен", deadline-change requests, watchers, workspace control settings.
@@ -135,6 +136,8 @@ export const runReminders = (slug: string) =>
 
 /** COUNT-only summary for the signed-in member (GET /workspaces/:slug/me/summary). */
 export interface MySummary {
+  /** My access role in the workspace (docs/PERMISSIONS.md): a guest only reads. */
+  role: MemberRole
   /** Open issues where I am an assignee. */
   assigned: number
   overdue: number

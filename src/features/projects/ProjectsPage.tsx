@@ -30,6 +30,7 @@ import { shortDate } from '@/lib/dates'
 import { pluralize } from '@/lib/plural'
 import { getProjects, PROJECT_STATUSES, type Project, type ProjectStatus } from '@/api/project'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { useMyRole } from '@/stores/summaryStore'
 import { AddProjectDialog } from './AddProjectDialog'
 
 type StatusFilter = 'all' | ProjectStatus
@@ -38,6 +39,9 @@ export function ProjectsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const workspace = useWorkspaceStore((s) => s.workspace)
+  const role = useMyRole()
+  // Creating a project is admin+ (docs/PERMISSIONS.md).
+  const canCreate = role === 'owner' || role === 'admin'
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -97,10 +101,12 @@ export function ProjectsPage() {
             className="h-8 w-72 pl-8"
           />
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus size={15} />
-          {t('Новый проект')}
-        </Button>
+        {canCreate && (
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus size={15} />
+            {t('Новый проект')}
+          </Button>
+        )}
       </div>
 
       {/* Status filter */}

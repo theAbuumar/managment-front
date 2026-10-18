@@ -33,6 +33,16 @@ export function useMySummary(): MySummary | null {
   return useSummaryStore((s) => (s.slug === slug ? s.summary : null))
 }
 
+/** My role in the current workspace (from the summary); null until loaded. */
+export function useMyRole() {
+  return useMySummary()?.role ?? null
+}
+
+/** A guest only reads (12.B4): hide create and edit controls for them. */
+export function useReadOnly(): boolean {
+  return useMyRole() === 'guest'
+}
+
 /**
  * Load the counters and keep them current: on workspace switch, on navigation,
  * on every live event (a notification, a task changed by someone else), when the
