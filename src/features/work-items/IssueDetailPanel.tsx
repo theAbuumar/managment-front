@@ -277,6 +277,10 @@ export function IssueDetailPanel({
     myRole === 'owner' || myRole === 'admin' || (issue.controller_id ?? issue.created_by_id) === currentUserId
   // Assignments' deadlines move through the controller (Ф5 5.B5).
   const canEditDeadline = !isAssignment || isReviewer
+  // Controller, review flag and type of controlled work are the controller's call
+  // (the API answers CONTROL_CHANGE_FORBIDDEN otherwise, 13.P5).
+  const canChangeControl = !(isAssignment || issue.requires_review) || isReviewer
+  const controlHint = canChangeControl ? undefined : t('Меняет контролёр или администратор')
 
   function saveTitle() {
     const value = titleDraft.trim()
@@ -859,6 +863,8 @@ export function IssueDetailPanel({
                 ).map(({ k, label }) => (
                   <button
                     key={k}
+                    disabled={!canChangeControl}
+                    title={controlHint}
                     onClick={() =>
                       issue.kind !== k &&
                       apply(
@@ -872,8 +878,8 @@ export function IssueDetailPanel({
                       )
                     }
                     className={cn(
-                      'flex-1 rounded px-2 py-1 font-medium transition-colors',
-                      issue.kind === k ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                      'flex-1 rounded px-2 py-1 font-medium transition-colors disabled:cursor-not-allowed',
+                      issue.kind === k ? 'bg-card shadow-sm' : 'text-muted-foreground enabled:hover:text-foreground',
                     )}
                   >
                     {label}
@@ -885,8 +891,8 @@ export function IssueDetailPanel({
             {isAssignment && (
               <PropRow label={t('Контролёр')}>
                 <PopoverPrimitive.Root>
-                  <PopoverPrimitive.Trigger asChild>
-                    <button className={triggerCls}>
+                  <PopoverPrimitive.Trigger asChild disabled={!canChangeControl}>
+                    <button className={cn(triggerCls, 'disabled:cursor-default')} title={controlHint}>
                       {issue.controller ? (
                         <>
                           <PersonAvatar person={issue.controller} size={20} />
