@@ -21,7 +21,12 @@ export class ApiError extends Error {
   readonly code: string
   readonly details?: unknown
 
-  constructor(status: number, code: string, message: string, details?: unknown) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    details?: unknown,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
@@ -72,6 +77,8 @@ interface RefreshResult {
   token: string | null
   /** True when the server could not be reached (the session may still be fine). */
   unreachable: boolean
+  /** Why the session could not be renewed, e.g. SESSION_REVOKED (ended elsewhere). */
+  code?: string
 }
 
 let refreshing: Promise<RefreshResult> | null = null
@@ -94,7 +101,11 @@ function refresh(): Promise<RefreshResult> {
       } catch (err) {
         if (!unreachable(err)) {
           markOnline()
-          return { token: null, unreachable: false }
+          const code = (
+            (err as AxiosError).response?.data as
+              { error?: { code?: string } } | undefined
+          )?.error?.code
+          return { token: null, unreachable: false, code }
         }
         markOffline()
         if (attempt > 0 || !(await waitForOnline(WAIT_FOR_SERVER_MS)))
@@ -113,12 +124,20 @@ export async function refreshSession(): Promise<string | null> {
 }
 
 // Requests that must never trigger a refresh-and-retry loop.
-const NO_RETRY = ['/auth/refresh', '/auth/logout', '/auth/email/', '/auth/telegram/']
+const NO_RETRY = [
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/email/',
+  '/auth/telegram/',
+]
 
-let onSessionExpired: (() => void) | null = null
+let onSessionExpired: ((code?: string) => void) | null = null
 
-/** Called once when the session cannot be renewed (wired up in main.tsx). */
-export function setSessionExpiredHandler(handler: () => void) {
+/**
+ * Called once when the session cannot be renewed (wired up in main.tsx), with the
+ * server's reason — SESSION_REVOKED when it was ended on another device or by an admin.
+ */
+export function setSessionExpiredHandler(handler: (code?: string) => void) {
   onSessionExpired = handler
 }
 
@@ -189,7 +208,7 @@ axiosRequester.interceptors.response.use(
       !NO_RETRY.some((p) => url.includes(p))
     ) {
       original._retried = true
-      const { token, unreachable: offline } = await refresh()
+      const { token, unreachable: offline, code } = await refresh()
       if (token) {
         original.headers.Authorization = `Bearer ${token}`
         return axiosRequester(original)
@@ -200,7 +219,7 @@ axiosRequester.interceptors.response.use(
           new ApiError(0, 'NETWORK_ERROR', getFriendlyMessage('NETWORK_ERROR')),
         )
       }
-      onSessionExpired?.()
+      onSessionExpired?.(code)
     }
 
     return Promise.reject(toApiError(err))

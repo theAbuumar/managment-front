@@ -34,6 +34,8 @@ const GROUPS: { key: AuditGroup | 'all'; label: () => string }[] = [
 const ACTIONS: Record<string, () => string> = {
   'auth.login': () => translate('Вход в систему'),
   'auth.logout': () => translate('Выход из системы'),
+  'auth.session_revoked': () => translate('Завершён сеанс'),
+  'auth.sessions_revoked': () => translate('Выход на всех других устройствах'),
   'auth.identity_linked': () => translate('Привязан способ входа'),
   'auth.identity_unlinked': () => translate('Отвязан способ входа'),
   'member.added': () => translate('Добавлен сотрудник'),
@@ -95,6 +97,12 @@ function details(e: AuditEntry): string {
     typeof meta.provider === 'string'
   ) {
     parts.push(LOGIN_METHODS[meta.provider]?.() ?? meta.provider)
+  }
+  if (e.action === 'auth.session_revoked' && meta.current === true) {
+    parts.push(translate('на этом устройстве'))
+  }
+  if (e.action === 'auth.sessions_revoked' && typeof meta.count === 'number') {
+    parts.push(translate('сеансов: {{count}}', { count: meta.count }))
   }
   if (typeof meta.role === 'string') {
     const role = ROLE_LABELS[meta.role as MemberRole]?.() ?? meta.role

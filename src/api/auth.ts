@@ -146,3 +146,39 @@ export const startOAuthLink = (provider: 'google' | 'github') =>
 
 export const unlinkIdentity = (provider: Identity['provider']) =>
   client.delete<unknown, void>(`/auth/identities/${provider}`)
+
+// ─── Sign-in sessions (Ф12 12.B2): «Мои сессии» in the profile ─────────────────
+
+export interface AuthSession {
+  id: string
+  /** password | email_code | google | github | telegram | demo; null for old sessions. */
+  method: string | null
+  /** «Chrome 128», «Safari 17»… parsed from the User-Agent by the server. */
+  browser: string | null
+  /** «Windows», «macOS», «iOS», «Android»… */
+  os: string | null
+  mobile: boolean
+  ip: string | null
+  user_agent: string | null
+  /** Sign-in time. */
+  created_at: string
+  /** Last sign-in or token refresh (≈ every 15 minutes while the site is open). */
+  last_used_at: string
+  expires_at: string
+  /** This browser's session. */
+  current: boolean
+}
+
+export const listSessions = () =>
+  client
+    .get<unknown, { data: AuthSession[] }>('/auth/sessions')
+    .then((r) => r.data)
+
+// Ends the session at once: its next request is refused (401 SESSION_REVOKED).
+// Ending the current one signs this browser out (the cookie is cleared).
+export const revokeSession = (id: string) =>
+  client.delete<unknown, void>(`/auth/sessions/${id}`)
+
+/** «Выйти на всех других устройствах»: this browser stays signed in. */
+export const revokeOtherSessions = () =>
+  client.post<unknown, { revoked: number }>('/auth/sessions/revoke-all')

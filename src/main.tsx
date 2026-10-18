@@ -21,6 +21,7 @@ import { getMe } from '@/api/auth'
 import { getWorkspaces } from '@/api/workspace'
 import { refreshSession, setSessionExpiredHandler } from '@/api/client'
 import { clearLocalSession, takeNextPath } from '@/lib/session'
+import { getFriendlyMessage } from '@/lib/errorMessages'
 import { APP_NAME } from '@/lib/constants'
 
 document.title = APP_NAME
@@ -40,10 +41,14 @@ window.addEventListener('vite:preloadError', () => {
 
 // A session that can't be renewed (refresh cookie expired/revoked) sends the user
 // back to the login page once, with the current page remembered.
-setSessionExpiredHandler(() => {
+setSessionExpiredHandler((code) => {
   if (!useAuthStore.getState().token) return
   clearLocalSession()
-  toast.error(t('Сессия истекла. Войдите снова.'))
+  toast.error(
+    code === 'SESSION_REVOKED' || code === 'ACCOUNT_DEACTIVATED'
+      ? getFriendlyMessage(code)
+      : t('Сессия истекла. Войдите снова.'),
+  )
   void router.navigate('/login')
 })
 

@@ -20,6 +20,10 @@ const ERROR_MESSAGES: Record<string, () => string> = {
   INVALID_CREDENTIALS: () => t('Неверный email или пароль.'),
   EMAIL_NOT_VERIFIED: () => t('Email ещё не подтверждён.'),
   ACCOUNT_DEACTIVATED: () => t('Аккаунт деактивирован.'),
+  SESSION_REVOKED: () =>
+    t(
+      'Сеанс завершён на другом устройстве или администратором. Войдите снова.',
+    ),
   NO_PASSWORD: () =>
     t('У аккаунта нет пароля — войдите через Google, GitHub или код на почту.'),
   OTP_NOT_FOUND: () => t('Код не найден. Запросите новый.'),
