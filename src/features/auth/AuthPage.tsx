@@ -24,6 +24,8 @@ import {
   OAUTH_URLS,
   getDemoAccounts,
   demoLogin,
+  getAuthProviders,
+  type AuthProviders,
   type AuthResponse,
   type DemoAccount,
 } from '@/api/auth'
@@ -73,12 +75,38 @@ function ProviderButton({
   )
 }
 
+// An older API without /auth/providers: show every method, as before.
+const ALL_PROVIDERS: AuthProviders = {
+  email: true,
+  google: true,
+  github: true,
+  telegram: true,
+  demo: false,
+}
+
+/** Sign-in methods configured on this deployment; null while loading. */
+function useAuthProviders(): AuthProviders | null {
+  const [providers, setProviders] = useState<AuthProviders | null>(null)
+  useEffect(() => {
+    getAuthProviders()
+      .then(setProviders)
+      .catch(() => setProviders(ALL_PROVIDERS))
+  }, [])
+  return providers
+}
+
 /** Only same-app paths are honoured as a post-login destination. */
 function safeNext(next: string | null): string | null {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : null
 }
 
-function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+function AuthForm({
+  mode,
+  available,
+}: {
+  mode: 'login' | 'register'
+  available: AuthProviders
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -236,23 +264,32 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     )
   }
 
-  const providers = (
+  // Only the methods configured on this deployment (no buttons that end in an error).
+  const hasProviders =
+    available.google || available.github || available.telegram
+  const providers = hasProviders && (
     <div className="flex flex-col gap-2.5">
-      <ProviderButton
-        icon={<GoogleIcon />}
-        label={t('Продолжить с Google')}
-        onClick={() => startOAuth(OAUTH_URLS.google)}
-      />
-      <ProviderButton
-        icon={<GithubIcon />}
-        label={t('Продолжить с GitHub')}
-        onClick={() => startOAuth(OAUTH_URLS.github)}
-      />
-      <ProviderButton
-        icon={<TelegramIcon />}
-        label={t('Продолжить с Telegram')}
-        onClick={telegram}
-      />
+      {available.google && (
+        <ProviderButton
+          icon={<GoogleIcon />}
+          label={t('Продолжить с Google')}
+          onClick={() => startOAuth(OAUTH_URLS.google)}
+        />
+      )}
+      {available.github && (
+        <ProviderButton
+          icon={<GithubIcon />}
+          label={t('Продолжить с GitHub')}
+          onClick={() => startOAuth(OAUTH_URLS.github)}
+        />
+      )}
+      {available.telegram && (
+        <ProviderButton
+          icon={<TelegramIcon />}
+          label={t('Продолжить с Telegram')}
+          onClick={telegram}
+        />
+      )}
     </div>
   )
 
@@ -264,10 +301,14 @@ function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     </div>
   )
 
+  if (!available.email) {
+    return <div className="flex flex-col gap-4">{providers}</div>
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {providers}
-      {divider}
+      {hasProviders && divider}
 
       {mode === 'login' ? (
         <Form {...loginForm}>
@@ -386,11 +427,21 @@ function DemoLogin() {
       .catch(() => setAccounts([]))
   }, [])
 
-  // One account per demo role, in the order the story is told.
-  const ROLES = [/^Ректор$/i, /^Проректор по учебной/i, /^Декан/i, /^Методист|Сотрудник/i]
-  const featured = ROLES.map((re) => accounts.find((a) => re.test(a.position ?? ''))).filter(
-    (a): a is DemoAccount => Boolean(a),
-  )
+  // One account per demo role, in the order the story is told. The API tags
+  // them (demo_role); the position patterns are a fallback for an older API.
+  const tagged = accounts.filter((a) => a.demo_role)
+  const ROLES = [
+    /^Ректор$/i,
+    /^Проректор по учебной/i,
+    /^Декан/i,
+    /^Методист|Сотрудник/i,
+  ]
+  const featured =
+    tagged.length > 0
+      ? tagged
+      : ROLES.map((re) =>
+          accounts.find((a) => re.test(a.position ?? '')),
+        ).filter((a): a is DemoAccount => Boolean(a))
   if (featured.length === 0) return null
 
   async function enter(account: DemoAccount) {
@@ -423,8 +474,12 @@ function DemoLogin() {
             disabled={busy !== null}
             className="rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary hover:bg-primary/5 disabled:opacity-60"
           >
-            <span className="block truncate text-sm font-medium">{a.position}</span>
-            <span className="block truncate text-xs text-muted-foreground">{a.display_name}</span>
+            <span className="block truncate text-sm font-medium">
+              {a.position}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {a.display_name}
+            </span>
           </button>
         ))}
       </div>
@@ -436,6 +491,7 @@ export function AuthPage() {
   const { t } = useTranslation()
   const [params] = useSearchParams()
   const initialTab = params.get('tab') === 'register' ? 'register' : 'login'
+  const available = useAuthProviders()
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-background px-4">
@@ -450,24 +506,38 @@ export function AuthPage() {
           </p>
         </div>
 
-        <DemoLogin />
+        {available?.demo && <DemoLogin />}
 
-        <Tabs defaultValue={initialTab}>
-          <TabsList className="mb-6 w-full">
-            <TabsTrigger value="login" className="flex-1">
-              {t('Вход')}
-            </TabsTrigger>
-            <TabsTrigger value="register" className="flex-1">
-              {t('Регистрация')}
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="login">
-            <AuthForm mode="login" />
-          </TabsContent>
-          <TabsContent value="register">
-            <AuthForm mode="register" />
-          </TabsContent>
-        </Tabs>
+        {available &&
+          (available.email ? (
+            <Tabs defaultValue={initialTab}>
+              <TabsList className="mb-6 w-full">
+                <TabsTrigger value="login" className="flex-1">
+                  {t('Вход')}
+                </TabsTrigger>
+                <TabsTrigger value="register" className="flex-1">
+                  {t('Регистрация')}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="login">
+                <AuthForm mode="login" available={available} />
+              </TabsContent>
+              <TabsContent value="register">
+                <AuthForm mode="register" available={available} />
+              </TabsContent>
+            </Tabs>
+          ) : available.google || available.github || available.telegram ? (
+            // Without email codes the providers both sign in and sign up.
+            <AuthForm mode="login" available={available} />
+          ) : (
+            !available.demo && (
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  'Вход пока не настроен. Обратитесь к администратору системы.',
+                )}
+              </p>
+            )
+          ))}
       </div>
     </div>
   )

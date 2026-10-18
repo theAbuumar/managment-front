@@ -95,9 +95,26 @@ export interface DemoAccount {
   position: string | null
   role: string | null
   workspace: string | null
+  /** The four quick-login accounts, in story order; null for the rest. */
+  demo_role?: 'rector' | 'prorector' | 'dean' | 'employee' | null
 }
 
-export const getDemoAccounts = () => client.get<unknown, DemoAccount[]>('/auth/demo/accounts')
+export const getDemoAccounts = () =>
+  client.get<unknown, DemoAccount[]>('/auth/demo/accounts')
 
 export const demoLogin = (email: string) =>
   client.post<unknown, AuthResponse>('/auth/demo/login', { email })
+
+// Sign-in methods configured on this deployment (13.P5): the login page shows only
+// these, so a stand without OAuth or SMTP has no buttons that end in an error.
+export interface AuthProviders {
+  email: boolean
+  google: boolean
+  github: boolean
+  telegram: boolean
+  /** DEMO_MODE: quick login as the demo accounts. */
+  demo: boolean
+}
+
+export const getAuthProviders = () =>
+  client.get<unknown, AuthProviders>('/auth/providers')

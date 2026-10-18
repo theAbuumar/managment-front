@@ -28,6 +28,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuthStore } from '@/stores/authStore'
 import { signOut } from '@/lib/session'
+import { getAuthProviders } from '@/api/auth'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import {
@@ -57,10 +58,21 @@ const ROLE_LABEL: Record<string, () => string> = {
   guest: () => translate('Гость'),
 }
 const memberLabel = (n: number) =>
-  pluralize(n, [translate('участник'), translate('участника'), translate('участников')])
+  pluralize(n, [
+    translate('участник'),
+    translate('участника'),
+    translate('участников'),
+  ])
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { t } = useTranslation()
+  // Demo stand (DEMO_MODE): a quiet badge says the data is fictional (13.B2).
+  const [demo, setDemo] = useState(false)
+  useEffect(() => {
+    getAuthProviders()
+      .then((p) => setDemo(p.demo))
+      .catch(() => setDemo(false))
+  }, [])
   const navigate = useNavigate()
   const { theme, toggle } = useTheme()
   const user = useAuthStore((s) => s.user)
@@ -120,7 +132,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
   const currentMeta = workspace ? meta[workspace.slug] : undefined
   const currentSub = [
-    currentMeta?.role ? (ROLE_LABEL[currentMeta.role]?.() ?? currentMeta.role) : null,
+    currentMeta?.role
+      ? (ROLE_LABEL[currentMeta.role]?.() ?? currentMeta.role)
+      : null,
     currentMeta ? memberLabel(currentMeta.count) : null,
   ]
     .filter(Boolean)
@@ -134,6 +148,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         size="icon"
         className="md:hidden h-8 w-8 shrink-0"
         onClick={onMenuClick}
+        aria-label={t('Навигация')}
       >
         <Menu size={18} />
       </Button>
@@ -241,6 +256,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       <div className="flex-1" />
 
+      {demo && (
+        <span
+          title={t('Данные вымышленного университета, их можно смело менять')}
+          className="mr-1 hidden shrink-0 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary sm:inline-flex"
+        >
+          {t('Демонстрационный стенд')}
+        </span>
+      )}
+
       {/* Right actions */}
       <div className="flex shrink-0 items-center gap-0.5">
         <button
@@ -255,7 +279,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           onClick={() => navigate('/notifications')}
           aria-label={
             unreadCount > 0
-              ? t('Уведомления, непрочитанных: {{count}}', { count: unreadCount })
+              ? t('Уведомления, непрочитанных: {{count}}', {
+                  count: unreadCount,
+                })
               : t('Уведомления')
           }
           className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"

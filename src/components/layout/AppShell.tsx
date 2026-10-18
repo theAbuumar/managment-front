@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { SidebarRail } from '@/features/sidebar/SidebarRail'
 import { SidebarPanel } from '@/features/sidebar/SidebarPanel'
 import { Topbar } from '@/features/topbar/Topbar'
@@ -14,12 +14,23 @@ function ActivePanel({ className }: { className?: string }) {
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  // The mobile drawer closes once a link in it has navigated (state adjusted
+  // during render, React's pattern for "reset on prop change").
+  const { key: locationKey } = useLocation()
+  const [drawerKey, setDrawerKey] = useState(locationKey)
+  if (drawerKey !== locationKey) {
+    setDrawerKey(locationKey)
+    setMobileOpen(false)
+  }
   useRealtimeConnection()
   useSummarySync()
   useNotificationToasts()
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background" data-print="page">
+    <div
+      className="flex h-screen flex-col overflow-hidden bg-background"
+      data-print="page"
+    >
       <div className="contents" data-print="hide">
         <Topbar onMenuClick={() => setMobileOpen(true)} />
       </div>
@@ -37,7 +48,10 @@ export function AppShell() {
           </SheetContent>
         </Sheet>
 
-        <main className="flex-1 overflow-y-auto bg-background" data-print="page">
+        <main
+          className="flex-1 overflow-y-auto bg-background"
+          data-print="page"
+        >
           <Outlet />
         </main>
       </div>
