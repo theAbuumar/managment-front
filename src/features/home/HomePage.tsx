@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -26,7 +26,7 @@ import { FEATURES } from '@/lib/features'
 import { IssueRow } from '@/features/issues/IssueRow'
 import { WorkspaceIssuePanel } from '@/features/issues/WorkspaceIssuePanel'
 import { TYPE_META, TONES } from '@/features/notifications/notificationMeta'
-import { BarList, DisciplineTrend, StatTile } from '@/features/analytics/charts'
+import { BarList, StatTile } from '@/features/analytics/charts'
 import {
   delta,
   fmt,
@@ -35,6 +35,14 @@ import {
   periodLabel,
 } from '@/features/analytics/format'
 import { t as translate } from '@/i18n'
+
+// The trend chart pulls in the chart library: load it only for the manager
+// dashboard, after the page itself is on screen (12.F4).
+const DisciplineTrend = lazy(() =>
+  import('@/features/analytics/trend-charts').then((m) => ({
+    default: m.DisciplineTrend,
+  })),
+)
 
 // Home by role (Ф7 7.F1, Ф10 10.F3) in three requests whatever the number of
 // projects: my open work (GET WS/issues), the latest notifications, and the
@@ -150,26 +158,33 @@ export function HomePage() {
             </p>
           </div>
 
-          {manager && <ManagerDashboard dash={dash} />}
-
-          {/* My week */}
-          <section>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-foreground">
-                {t('Мои задачи на неделю')}
-              </h2>
-              <button
-                onClick={() => navigate('/your-work')}
-                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                {t('Все мои задачи')}
-                <ArrowRight size={14} />
-              </button>
-            </div>
-            {mine === null ? (
+          {/* The three requests land together; until then one placeholder stands
+              for the whole page, so the manager dashboard appearing above "My
+              week" doesn't push already drawn blocks down (12.F4, layout shift). */}
+          {mine === null ? (
+            <div className="space-y-8" aria-busy="true">
+              <Skeleton className="h-40" />
               <Skeleton className="h-32" />
-            ) : (
-              <>
+              <Skeleton className="h-24" />
+            </div>
+          ) : (
+            <>
+              {manager && <ManagerDashboard dash={dash} />}
+
+              {/* My week */}
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    {t('Мои задачи на неделю')}
+                  </h2>
+                  <button
+                    onClick={() => navigate('/your-work')}
+                    className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    {t('Все мои задачи')}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
                 <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <StatTile
                     icon={Flame}
@@ -221,107 +236,105 @@ export function HomePage() {
                       ))}
                   </div>
                 )}
-              </>
-            )}
-          </section>
+              </section>
 
-          {/* Own discipline for those who don't manage anyone. */}
-          {dash && !manager && dash.current.discipline !== null && (
-            <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <StatTile
-                icon={Gauge}
-                label={t('Моя исполнительская дисциплина')}
-                value={pct(dash.current.discipline)}
-                delta={delta(
-                  dash.current.discipline,
-                  dash.previous.discipline,
-                  { upIsGood: true, points: true },
-                )}
-                hint={periodLabel(dash.period)}
-              />
-              <StatTile
-                icon={CheckCircle2}
-                label={t('Исполнено за период')}
-                value={fmt(dash.current.completed)}
-              />
-            </section>
-          )}
+              {/* Own discipline for those who don't manage anyone. */}
+              {dash && !manager && dash.current.discipline !== null && (
+                <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <StatTile
+                    icon={Gauge}
+                    label={t('Моя исполнительская дисциплина')}
+                    value={pct(dash.current.discipline)}
+                    delta={delta(
+                      dash.current.discipline,
+                      dash.previous.discipline,
+                      { upIsGood: true, points: true },
+                    )}
+                    hint={periodLabel(dash.period)}
+                  />
+                  <StatTile
+                    icon={CheckCircle2}
+                    label={t('Исполнено за период')}
+                    value={fmt(dash.current.completed)}
+                  />
+                </section>
+              )}
 
-          {/* Latest notifications */}
-          <section>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-foreground">
-                {t('Последние уведомления')}
-              </h2>
-              <button
-                onClick={() => navigate('/notifications')}
-                className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                {t('Все уведомления')}
-                <ArrowRight size={14} />
-              </button>
-            </div>
-            {notes === null ? (
-              <Skeleton className="h-24" />
-            ) : notes.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-                {t('Уведомлений пока нет.')}
-              </p>
-            ) : (
-              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-                {notes.map((n) => {
-                  const meta = TYPE_META[n.type] ?? {
-                    icon: Bell,
-                    tone: 'gray' as const,
-                    text: () => '',
-                  }
-                  const Icon = meta.icon
-                  return (
-                    <button
-                      key={n.id}
-                      onClick={() =>
-                        n.issue
-                          ? navigate(
-                              `/projects/${n.issue.project_id}/work-items?issue=${n.issue.id}`,
-                            )
-                          : navigate('/notifications')
+              {/* Latest notifications */}
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    {t('Последние уведомления')}
+                  </h2>
+                  <button
+                    onClick={() => navigate('/notifications')}
+                    className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    {t('Все уведомления')}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+                {!notes || notes.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                    {t('Уведомлений пока нет.')}
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                    {notes.map((n) => {
+                      const meta = TYPE_META[n.type] ?? {
+                        icon: Bell,
+                        tone: 'gray' as const,
+                        text: () => '',
                       }
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50"
-                    >
-                      <span
-                        className={cn(
-                          'flex size-7 shrink-0 items-center justify-center rounded-full',
-                          TONES[meta.tone],
-                        )}
-                      >
-                        <Icon size={14} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-foreground">
-                          {meta.text(n, shortName(n.actor))}
-                        </span>
-                        {n.issue && (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {n.issue.project.identifier}-{n.issue.sequence_id} ·{' '}
-                            {n.issue.title}
+                      const Icon = meta.icon
+                      return (
+                        <button
+                          key={n.id}
+                          onClick={() =>
+                            n.issue
+                              ? navigate(
+                                  `/projects/${n.issue.project_id}/work-items?issue=${n.issue.id}`,
+                                )
+                              : navigate('/notifications')
+                          }
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50"
+                        >
+                          <span
+                            className={cn(
+                              'flex size-7 shrink-0 items-center justify-center rounded-full',
+                              TONES[meta.tone],
+                            )}
+                          >
+                            <Icon size={14} />
                           </span>
-                        )}
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {timeAgo(n.created_at)}
-                      </span>
-                      {!n.is_read && (
-                        <span
-                          className="size-2 shrink-0 rounded-full bg-primary"
-                          aria-label={t('Новое')}
-                        />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </section>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm text-foreground">
+                              {meta.text(n, shortName(n.actor))}
+                            </span>
+                            {n.issue && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {n.issue.project.identifier}-
+                                {n.issue.sequence_id} · {n.issue.title}
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {timeAgo(n.created_at)}
+                          </span>
+                          {!n.is_read && (
+                            <span
+                              className="size-2 shrink-0 rounded-full bg-primary"
+                              aria-label={t('Новое')}
+                            />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </div>
       </div>
 
@@ -534,7 +547,9 @@ function ManagerDashboard({ dash }: { dash: Dashboard }) {
           <h3 className="mb-1 text-sm font-semibold">
             {t('Исполнено в срок по неделям, %')}
           </h3>
-          <DisciplineTrend items={dash.trend} bucket="week" height={160} />
+          <Suspense fallback={<Skeleton className="h-[160px]" />}>
+            <DisciplineTrend items={dash.trend} bucket="week" height={160} />
+          </Suspense>
         </div>
       )}
     </section>

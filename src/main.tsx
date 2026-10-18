@@ -109,8 +109,22 @@ bootstrap().finally(() => {
       </ThemeProvider>
     </StrictMode>,
   )
-  // The rest of the pages download in the background once the first screen is up.
+  // The rest of the pages download in the background once someone is at the
+  // screen — the first mouse move, key or touch — or after 15 s, so their parsing
+  // doesn't compete with the page being opened (12.F4). The presenter moves the
+  // mouse long before the first click, so later pages still open instantly.
   const idle =
-    window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1500))
-  idle(() => prefetchPages())
+    window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 0))
+  const events = ['pointermove', 'keydown', 'touchstart'] as const
+  let started = false
+  const start = () => {
+    if (started) return
+    started = true
+    events.forEach((e) => window.removeEventListener(e, start))
+    idle(() => prefetchPages())
+  }
+  events.forEach((e) =>
+    window.addEventListener(e, start, { once: true, passive: true }),
+  )
+  setTimeout(start, 15000)
 })

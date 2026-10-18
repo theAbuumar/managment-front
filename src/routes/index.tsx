@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { NotFoundPage } from '@/routes/NotFoundPage'
 import { ErrorPage } from '@/routes/ErrorPage'
-import { AuthPage } from '@/features/auth/AuthPage'
 import { ProtectedRoute, WorkspaceRoute } from '@/features/auth/ProtectedRoute'
 import { SettingsLayout } from '@/features/settings/SettingsLayout'
 import { ProjectSettingsLayout } from '@/features/projects/ProjectSettingsLayout'
@@ -11,6 +10,9 @@ import { lazyPage } from '@/routes/lazyPage'
 
 // Pages load on first visit (own chunk each); the shell, login and guards stay in
 // the main bundle so the first screen needs one request.
+// The sign-in page carries the form libraries (react-hook-form, zod); signed-in
+// pages don't need them in the main bundle (12.F4).
+const AuthPage = lazyPage(() => import('@/features/auth/AuthPage'), 'AuthPage')
 const CreateWorkspacePage = lazyPage(
   () => import('@/features/onboarding/CreateWorkspacePage'),
   'CreateWorkspacePage',

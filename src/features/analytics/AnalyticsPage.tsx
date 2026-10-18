@@ -47,14 +47,8 @@ import type { IssueKind } from '@/api/issue'
 import { errorText } from '@/lib/errorMessages'
 import { shortName } from '@/lib/people'
 import { shortDate } from '@/lib/dates'
-import {
-  BarList,
-  ChartCard,
-  CompletedTrend,
-  DataTable,
-  DisciplineTrend,
-  StatTile,
-} from './charts'
+import { BarList, ChartCard, DataTable, StatTile } from './charts'
+import { CompletedTrend, DisciplineTrend } from './trend-charts'
 import {
   bucketLabel,
   delta,
@@ -355,17 +349,20 @@ export function AnalyticsPage() {
                 className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
               />
             </label>
-            {data && data.tree.length > 0 && (
+            {/* Shown (disabled) while loading too: a select that appears with
+                the data would re-wrap the toolbar and push the page down (12.F4). */}
+            {(!data || data.tree.length > 0) && (
               <select
                 value={filters.department ?? ''}
                 onChange={(e) =>
                   setFilter({ department: e.target.value || null })
                 }
+                disabled={!data}
                 className="max-w-60 rounded-md border border-input bg-background px-2 py-1 text-xs"
                 aria-label={t('Подразделение')}
               >
                 <option value="">{t('Все подразделения')}</option>
-                {flatten(data.tree).map(({ node, depth }) => (
+                {flatten(data?.tree ?? []).map(({ node, depth }) => (
                   <option key={node.id} value={node.id}>
                     {`${'  '.repeat(depth)}${node.name}`}
                   </option>
