@@ -19,7 +19,11 @@ import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { getMe } from '@/api/auth'
 import { getWorkspaces } from '@/api/workspace'
-import { refreshSession, setSessionExpiredHandler } from '@/api/client'
+import {
+  refreshSession,
+  setAccessRevokedHandler,
+  setSessionExpiredHandler,
+} from '@/api/client'
 import { clearLocalSession, takeNextPath } from '@/lib/session'
 import { getFriendlyMessage } from '@/lib/errorMessages'
 import { APP_NAME } from '@/lib/constants'
@@ -52,6 +56,26 @@ setSessionExpiredHandler((code) => {
   void router.navigate('/login')
 })
 
+// An admin turned the user's access to a workspace off (12.B7). With no workspace
+// left their sessions end and the handler above signs them out; otherwise they
+// move to a workspace they still have.
+let revokedHandled: string | null = null
+setAccessRevokedHandler(async (slug) => {
+  if (revokedHandled === slug) return
+  revokedHandled = slug
+  toast.error(getFriendlyMessage('MEMBER_DEACTIVATED'))
+  const workspaces = await getWorkspaces().catch(() => [])
+  const store = useWorkspaceStore.getState()
+  store.setWorkspaces(workspaces)
+  if (store.workspace?.slug === slug && workspaces.length > 0) {
+    store.setWorkspace(workspaces[0])
+    void router.navigate('/')
+  }
+  setTimeout(() => {
+    revokedHandled = null
+  }, 10_000)
+})
+
 // After OAuth the backend redirects to /#access_token=...  (or /#error=...).
 // Capture that here before the router mounts, otherwise the token in the URL
 // hash is thrown away and the guard bounces back to /login.
@@ -65,7 +89,13 @@ async function consumeOAuthRedirect(): Promise<boolean> {
 
   if (error) {
     setTimeout(
-      () => toast.error(t('Не удалось войти: {{error}}', { error })),
+      () =>
+        toast.error(
+          // Backend codes (MEMBER_DEACTIVATED…) have a message; provider ones don't.
+          /^[A-Z_]+$/.test(error)
+            ? getFriendlyMessage(error)
+            : t('Не удалось войти: {{error}}', { error }),
+        ),
       0,
     )
     return true

@@ -141,6 +141,16 @@ export function setSessionExpiredHandler(handler: (code?: string) => void) {
   onSessionExpired = handler
 }
 
+let onAccessRevoked: ((workspaceSlug: string) => void) | null = null
+
+/**
+ * Called when a request to a workspace answers 403 MEMBER_DEACTIVATED — an admin
+ * turned this user's access off (12.B7). Wired up in main.tsx.
+ */
+export function setAccessRevokedHandler(handler: (workspaceSlug: string) => void) {
+  onAccessRevoked = handler
+}
+
 function toApiError(err: AxiosError): ApiError {
   if (!err.response || UNAVAILABLE.has(err.response.status)) {
     return new ApiError(0, 'NETWORK_ERROR', getFriendlyMessage('NETWORK_ERROR'))
@@ -222,7 +232,13 @@ axiosRequester.interceptors.response.use(
       onSessionExpired?.(code)
     }
 
-    return Promise.reject(toApiError(err))
+    const apiError = toApiError(err)
+    // An admin turned this user's access to the workspace off while they work (12.B7).
+    if (apiError.status === 403 && apiError.code === 'MEMBER_DEACTIVATED') {
+      const slug = /\/workspaces\/([^/?]+)/.exec(url)?.[1]
+      if (slug) onAccessRevoked?.(decodeURIComponent(slug))
+    }
+    return Promise.reject(apiError)
   },
 )
 

@@ -42,6 +42,9 @@ const ACTIONS: Record<string, () => string> = {
   'member.updated': () => translate('Изменены роль или должность'),
   'member.removed': () => translate('Сотрудник исключён'),
   'member.left': () => translate('Сотрудник покинул пространство'),
+  'member.deactivated': () => translate('Доступ сотрудника отключён'),
+  'member.activated': () => translate('Доступ сотрудника восстановлен'),
+  'member.identity_reset': () => translate('Сброшена привязка входа сотрудника'),
   'invite.sent': () => translate('Отправлено приглашение'),
   'project.member_added': () => translate('Добавлен участник проекта'),
   'project.member_removed': () => translate('Исключён участник проекта'),
@@ -62,6 +65,7 @@ const ACTIONS: Record<string, () => string> = {
 
 const DANGER = new Set([
   'member.removed',
+  'member.deactivated',
   'department.deleted',
   'project.deleted',
   'issue.deleted',
@@ -93,7 +97,8 @@ function details(e: AuditEntry): string {
     parts.push(LOGIN_METHODS[meta.method]?.() ?? meta.method)
   }
   if (
-    e.action.startsWith('auth.identity_') &&
+    (e.action.startsWith('auth.identity_') ||
+      e.action === 'member.identity_reset') &&
     typeof meta.provider === 'string'
   ) {
     parts.push(LOGIN_METHODS[meta.provider]?.() ?? meta.provider)

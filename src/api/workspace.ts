@@ -64,6 +64,8 @@ export interface WorkspaceMember {
   /** Place in the org structure (independent of the access role). */
   department_id?: string | null
   position?: string | null
+  /** Access turned off by an admin (12.B7); null — active. */
+  deactivated_at?: string | null
   created_at?: string
   user: {
     id: string
@@ -78,13 +80,24 @@ export interface WorkspaceMember {
   department?: { id: string; name: string; short_name: string | null } | null
 }
 
-export const getWorkspaceMembers = (
+// Members whose access an admin turned off (12.B7) cannot be assigned or chosen:
+// pickers and lists get only members with access; «Сотрудники» asks for everyone.
+export async function getWorkspaceMembers(
   workspaceSlug: string,
-  params?: { department?: string; subtree?: boolean; search?: string },
-) =>
-  client.get<unknown, WorkspaceMember[]>(`/workspaces/${workspaceSlug}/members`, {
-    params,
-  })
+  params?: {
+    department?: string
+    subtree?: boolean
+    search?: string
+    includeDeactivated?: boolean
+  },
+): Promise<WorkspaceMember[]> {
+  const { includeDeactivated, ...query } = params ?? {}
+  const list = await client.get<unknown, WorkspaceMember[]>(
+    `/workspaces/${workspaceSlug}/members`,
+    { params: query },
+  )
+  return includeDeactivated ? list : list.filter((m) => !m.deactivated_at)
+}
 
 // Role, department and/or position (admin+). The owner's role and your own role
 // cannot change; department/position can be set for anyone.
@@ -173,3 +186,49 @@ export const inviteExistingUser = (
 // Leave the workspace yourself (any role but owner → 403 OWNER_CANNOT_LEAVE).
 export const leaveWorkspace = (workspaceSlug: string) =>
   client.post<unknown, void>(`/workspaces/${workspaceSlug}/leave`)
+
+// ─── Members' access (Ф12 12.B7, admin+) ─────────────────────────────────────
+
+export type LoginProvider = 'email' | 'google' | 'github' | 'telegram'
+
+export interface MemberAccess {
+  user_id: string
+  deactivated_at: string | null
+  deactivated_by: { id: string; display_name: string } | null
+  /** Latest sign-in on any device. */
+  last_login_at: string | null
+  /** Latest activity: a sign-in or a token refresh. */
+  last_seen_at: string | null
+  /** Devices signed in right now. */
+  active_sessions: number
+  providers: LoginProvider[]
+  /** Open tasks where they are an assignee or the controller. */
+  open_issues: number
+}
+
+export const getMemberAccess = (workspaceSlug: string) =>
+  client.get<unknown, MemberAccess[]>(
+    `/workspaces/${workspaceSlug}/members/access`,
+  )
+
+/** `signed_out` — their sessions ended (no workspace with access left). */
+export const deactivateMember = (workspaceSlug: string, userId: string) =>
+  client.post<unknown, { member: WorkspaceMember; signed_out: boolean }>(
+    `/workspaces/${workspaceSlug}/members/${userId}/deactivate`,
+  )
+
+export const activateMember = (workspaceSlug: string, userId: string) =>
+  client.post<unknown, WorkspaceMember>(
+    `/workspaces/${workspaceSlug}/members/${userId}/activate`,
+  )
+
+/** Unlink a member's Telegram, Google or GitHub (a lost phone or account). */
+export const resetMemberIdentity = (
+  workspaceSlug: string,
+  userId: string,
+  provider: Exclude<LoginProvider, 'email'>,
+) =>
+  client.delete<unknown, void>(
+    `/workspaces/${workspaceSlug}/members/${userId}/identities/${provider}`,
+  )
+

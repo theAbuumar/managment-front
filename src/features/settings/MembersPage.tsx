@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Users, Search, Trash2, Building2 } from 'lucide-react'
+import { Users, Search, Trash2, Building2, Mail, MonitorSmartphone, MoreHorizontal, Unlink, UserCheck, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Table,
@@ -23,27 +23,60 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { GithubIcon, GoogleIcon, TelegramIcon } from '@/features/auth/ProviderIcons'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useAuthStore } from '@/stores/authStore'
 import {
   getWorkspaceMembers,
   updateMember,
   removeMember,
+  getMemberAccess,
+  deactivateMember,
+  activateMember,
+  resetMemberIdentity,
   ROLE_LABELS,
+  type LoginProvider,
+  type MemberAccess,
   type WorkspaceMember,
   type AssignableRole,
   type MemberRole,
 } from '@/api/workspace'
 import { buildTree, flattenTree, getDepartments, type Department } from '@/api/department'
 import { fullName, shortName } from '@/lib/people'
-import { shortDate } from '@/lib/dates'
+import { dateTime, shortDate, timeAgo } from '@/lib/dates'
 import { errorText } from '@/lib/errorMessages'
+import { cn } from '@/lib/utils'
+import { t as translate } from '@/i18n'
 import { AddMemberDialog } from './AddMemberDialog'
 
 const ALL = '__all__'
 const NONE = '__none__'
 
-type RoleFilter = 'all' | MemberRole
+// 'deactivated': members whose access an admin turned off (12.B7).
+type RoleFilter = 'all' | MemberRole | 'deactivated'
+
+type ResettableProvider = Exclude<LoginProvider, 'email'>
+
+const PROVIDER_NAMES: Record<LoginProvider, () => string> = {
+  email: () => translate('Почта'),
+  google: () => 'Google',
+  github: () => 'GitHub',
+  telegram: () => 'Telegram',
+}
+
+const PROVIDER_ICONS: Record<LoginProvider, React.ReactNode> = {
+  email: <Mail size={14} />,
+  google: <GoogleIcon />,
+  github: <GithubIcon />,
+  telegram: <TelegramIcon />,
+}
 
 /** Department ids of `rootId` and everything below it. */
 function subtreeIds(departments: Department[], rootId: string): Set<string> {
@@ -73,10 +106,14 @@ export function MembersPage() {
   const [withSub, setWithSub] = useState(true)
   const [role, setRole] = useState<RoleFilter>('all')
   const [removing, setRemoving] = useState<WorkspaceMember | null>(null)
+  // Admin view (12.B7): sign-ins, devices, login methods; deactivation and resets.
+  const [access, setAccess] = useState<Map<string, MemberAccess>>(new Map())
+  const [deactivating, setDeactivating] = useState<WorkspaceMember | null>(null)
+  const [resetting, setResetting] = useState<{ member: WorkspaceMember; provider: ResettableProvider } | null>(null)
 
   async function load() {
     if (!workspace) return
-    setMembers(await getWorkspaceMembers(workspace.slug).catch(() => []))
+    setMembers(await getWorkspaceMembers(workspace.slug, { includeDeactivated: true }).catch(() => []))
   }
 
   useEffect(() => {
@@ -84,7 +121,7 @@ export function MembersPage() {
     ;(async () => {
       if (!workspace) return
       const [list, deps] = await Promise.all([
-        getWorkspaceMembers(workspace.slug).catch(() => []),
+        getWorkspaceMembers(workspace.slug, { includeDeactivated: true }).catch(() => []),
         getDepartments(workspace.slug).catch(() => []),
       ])
       if (cancelled) return
@@ -104,13 +141,33 @@ export function MembersPage() {
   const myRole = members.find((m) => m.user_id === currentUserId)?.role
   const canManage = myRole === 'owner' || myRole === 'admin'
 
+  const toMap = (list: MemberAccess[]) => new Map(list.map((a) => [a.user_id, a]))
+
+  async function loadAccess() {
+    if (!workspace) return
+    setAccess(toMap(await getMemberAccess(workspace.slug).catch(() => [])))
+  }
+
+  useEffect(() => {
+    if (!workspace || !canManage) return
+    let cancelled = false
+    getMemberAccess(workspace.slug)
+      .then((list) => !cancelled && setAccess(toMap(list)))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [workspace?.slug, canManage]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     const inDept =
       dept === ALL || dept === NONE ? null : withSub ? subtreeIds(departments, dept) : new Set([dept])
     return members
       .filter((m) => {
-        if (role !== 'all' && m.role !== role) return false
+        if (role === 'deactivated') {
+          if (!m.deactivated_at) return false
+        } else if (role !== 'all' && m.role !== role) return false
         if (dept === NONE && m.department_id) return false
         if (inDept && (!m.department_id || !inDept.has(m.department_id))) return false
         if (!q) return true
@@ -158,6 +215,49 @@ export function MembersPage() {
       toast.error(errorText(err, t('Не удалось удалить сотрудника')))
     }
   }
+
+  async function deactivate() {
+    if (!workspace || !deactivating) return
+    const m = deactivating
+    try {
+      const { member, signed_out } = await deactivateMember(workspace.slug, m.user_id)
+      setMembers((prev) => prev.map((x) => (x.user_id === m.user_id ? { ...x, deactivated_at: member.deactivated_at } : x)))
+      toast.success(
+        signed_out
+          ? t('Доступ {{name}} отключён, все сеансы завершены', { name: shortName(m.user) })
+          : t('Доступ {{name}} к пространству отключён', { name: shortName(m.user) }),
+      )
+      void loadAccess()
+    } catch (err) {
+      toast.error(errorText(err, t('Не удалось отключить доступ')))
+    }
+  }
+
+  async function activate(m: WorkspaceMember) {
+    if (!workspace) return
+    try {
+      await activateMember(workspace.slug, m.user_id)
+      setMembers((prev) => prev.map((x) => (x.user_id === m.user_id ? { ...x, deactivated_at: null } : x)))
+      toast.success(t('Доступ {{name}} восстановлен', { name: shortName(m.user) }))
+      void loadAccess()
+    } catch (err) {
+      toast.error(errorText(err, t('Не удалось вернуть доступ')))
+    }
+  }
+
+  async function resetIdentity() {
+    if (!workspace || !resetting) return
+    const { member, provider } = resetting
+    try {
+      await resetMemberIdentity(workspace.slug, member.user_id, provider)
+      toast.success(t('{{provider}} отвязан от аккаунта {{name}}', { provider: PROVIDER_NAMES[provider](), name: shortName(member.user) }))
+      void loadAccess()
+    } catch (err) {
+      toast.error(errorText(err, t('Не удалось отвязать')))
+    }
+  }
+
+  const deactivatingInfo = deactivating ? access.get(deactivating.user_id) : undefined
 
   return (
     <div>
@@ -224,6 +324,9 @@ export function MembersPage() {
                   {ROLE_LABELS[r]()}
                 </SelectItem>
               ))}
+              {members.some((m) => m.deactivated_at) && (
+                <SelectItem value="deactivated">{t('Доступ отключён')}</SelectItem>
+              )}
             </SelectContent>
           </Select>
           {rows.length !== members.length && (
@@ -241,8 +344,8 @@ export function MembersPage() {
                 <TableHead>{t('Должность')}</TableHead>
                 <TableHead>{t('Подразделение')}</TableHead>
                 <TableHead className="w-44">{t('Роль доступа')}</TableHead>
-                <TableHead className="w-28">{t('В системе с')}</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-28">{canManage ? t('Активность') : t('В системе с')}</TableHead>
+                <TableHead className="sticky right-0 w-10 bg-background" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -261,9 +364,9 @@ export function MembersPage() {
                   // Owner and self can't change role or be removed (backend rejects both).
                   const roleEditable = canManage && m.role !== 'owner' && m.user_id !== currentUserId
                   return (
-                    <TableRow key={m.user_id}>
+                    <TableRow key={m.user_id} className={cn(m.deactivated_at && 'bg-muted/30')}>
                       <TableCell>
-                        <div className="flex items-center gap-2.5">
+                        <div className={cn('flex items-center gap-2.5', m.deactivated_at && 'opacity-60')}>
                           <PersonAvatar person={{ ...m.user, id: m.user_id }} size={30} />
                           <div className="min-w-0">
                             <p className="truncate font-medium" title={fullName(m.user)}>
@@ -272,11 +375,26 @@ export function MembersPage() {
                                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t('(вы)')}</span>
                               )}
                             </p>
+                            {m.deactivated_at && (
+                              <p
+                                className="text-xs font-medium text-destructive"
+                                title={
+                                  access.get(m.user_id)?.deactivated_by
+                                    ? t('Отключил(а): {{name}}, {{date}}', {
+                                        name: access.get(m.user_id)!.deactivated_by!.display_name,
+                                        date: dateTime(m.deactivated_at),
+                                      })
+                                    : dateTime(m.deactivated_at)
+                                }
+                              >
+                                {t('Доступ отключён')}
+                              </p>
+                            )}
                             <p className="truncate text-xs text-muted-foreground">{m.user.email ?? '—'}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-48">
+                      <TableCell className="min-w-40">
                         {canManage ? (
                           <PositionInput
                             value={m.position ?? ''}
@@ -286,7 +404,7 @@ export function MembersPage() {
                           <span className="text-muted-foreground">{m.position || '—'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="min-w-56">
+                      <TableCell className="min-w-44">
                         {canManage ? (
                           <Select
                             value={m.department_id ?? NONE}
@@ -340,19 +458,53 @@ export function MembersPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {m.created_at ? shortDate(m.created_at) : '—'}
+                        {canManage ? (
+                          <AccessCell info={access.get(m.user_id)} />
+                        ) : m.created_at ? (
+                          shortDate(m.created_at)
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      {/* Pinned to the right edge: reachable when the table scrolls sideways. */}
+                      <TableCell className="sticky right-0 bg-background text-right">
                         {roleEditable && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            title={t('Удалить из пространства')}
-                            onClick={() => setRemoving(m)}
-                          >
-                            <Trash2 size={15} />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
+                                title={t('Действия с сотрудником')}
+                              >
+                                <MoreHorizontal size={15} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-60">
+                              {m.deactivated_at ? (
+                                <DropdownMenuItem onClick={() => activate(m)}>
+                                  <UserCheck size={14} className="mr-2" />
+                                  {t('Вернуть доступ')}
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => setDeactivating(m)}>
+                                  <UserX size={14} className="mr-2" />
+                                  {t('Отключить доступ')}
+                                </DropdownMenuItem>
+                              )}
+                              {resettable(access.get(m.user_id)).map((provider) => (
+                                <DropdownMenuItem key={provider} onClick={() => setResetting({ member: m, provider })}>
+                                  <Unlink size={14} className="mr-2" />
+                                  {t('Отвязать {{provider}}', { provider: PROVIDER_NAMES[provider]() })}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive" onClick={() => setRemoving(m)}>
+                                <Trash2 size={14} className="mr-2" />
+                                {t('Удалить из пространства')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </TableCell>
                     </TableRow>
@@ -379,6 +531,79 @@ export function MembersPage() {
         cancelLabel={t('Отмена')}
         onConfirm={remove}
       />
+      <ConfirmDialog
+        open={deactivating !== null}
+        onOpenChange={(v) => !v && setDeactivating(null)}
+        title={t('Отключить доступ {{name}}?', { name: deactivating ? shortName(deactivating.user) : '' })}
+        description={[
+          t('Сотрудник не сможет открыть пространство, его сеансы в нём завершатся, уведомления о задачах приходить не будут. Задачи, комментарии и история сохранятся, доступ можно вернуть.'),
+          deactivatingInfo && deactivatingInfo.open_issues > 0
+            ? t('Открытых задач у сотрудника: {{n}}. Передайте их другому исполнителю или контролёру.', { n: deactivatingInfo.open_issues })
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        confirmLabel={t('Отключить')}
+        cancelLabel={t('Отмена')}
+        onConfirm={deactivate}
+      />
+      <ConfirmDialog
+        open={resetting !== null}
+        onOpenChange={(v) => !v && setResetting(null)}
+        title={
+          resetting
+            ? t('Отвязать {{provider}} от аккаунта {{name}}?', {
+                provider: PROVIDER_NAMES[resetting.provider](),
+                name: shortName(resetting.member.user),
+              })
+            : ''
+        }
+        description={t('Вход через этот способ и уведомления в нём перестанут работать. Сотрудник сможет привязать его заново в профиле.')}
+        confirmLabel={t('Отвязать')}
+        cancelLabel={t('Отмена')}
+        onConfirm={resetIdentity}
+      />
+    </div>
+  )
+}
+
+/** Login methods an admin may unlink: not the email, never the last one (12.B7). */
+function resettable(info: MemberAccess | undefined): ResettableProvider[] {
+  if (!info || info.providers.length < 2) return []
+  return info.providers.filter((p): p is ResettableProvider => p !== 'email')
+}
+
+/** Last activity, login methods and devices signed in (admin view, 12.B7). */
+function AccessCell({ info }: { info: MemberAccess | undefined }) {
+  const { t } = useTranslation()
+  if (!info) return <span>—</span>
+  const seen = info.last_seen_at ?? info.last_login_at
+  return (
+    <div className="space-y-1 whitespace-nowrap">
+      <p
+        className="text-sm text-foreground"
+        title={info.last_login_at ? t('Последний вход: {{date}}', { date: dateTime(info.last_login_at) }) : undefined}
+      >
+        {seen ? timeAgo(seen) : t('Не входил(а)')}
+      </p>
+      {(info.providers.length > 0 || info.active_sessions > 0) && (
+        <p className="flex items-center gap-1.5 text-xs">
+          {info.providers.map((p) => (
+            <span key={p} title={PROVIDER_NAMES[p]()} aria-label={PROVIDER_NAMES[p]()}>
+              {PROVIDER_ICONS[p]}
+            </span>
+          ))}
+          {info.active_sessions > 0 && (
+            <span
+              className="flex items-center gap-0.5"
+              title={t('Устройств с открытым сеансом: {{n}}', { n: info.active_sessions })}
+            >
+              <MonitorSmartphone size={13} />
+              {info.active_sessions}
+            </span>
+          )}
+        </p>
+      )}
     </div>
   )
 }
