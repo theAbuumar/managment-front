@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { getFriendlyMessage } from '@/lib/errorMessages'
+import { t } from '@/i18n'
 import {
   markOffline,
   markOnline,
@@ -20,18 +21,22 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly details?: unknown
+  /** X-Request-Id of the failed request: the server's log lines carry it (12.B9). */
+  readonly requestId?: string
 
   constructor(
     status: number,
     code: string,
     message: string,
     details?: unknown,
+    requestId?: string,
   ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.details = details
+    this.requestId = requestId
   }
 }
 
@@ -147,7 +152,9 @@ let onAccessRevoked: ((workspaceSlug: string) => void) | null = null
  * Called when a request to a workspace answers 403 MEMBER_DEACTIVATED — an admin
  * turned this user's access off (12.B7). Wired up in main.tsx.
  */
-export function setAccessRevokedHandler(handler: (workspaceSlug: string) => void) {
+export function setAccessRevokedHandler(
+  handler: (workspaceSlug: string) => void,
+) {
   onAccessRevoked = handler
 }
 
@@ -159,11 +166,23 @@ function toApiError(err: AxiosError): ApiError {
     | { error?: { code?: string; message?: string; details?: unknown } }
     | undefined
   const code = body?.error?.code ?? 'INTERNAL_ERROR'
+  const header = err.response.headers?.['x-request-id']
+  const requestId = typeof header === 'string' ? header : undefined
+  // A server failure is the admin's to look into: the message carries the start
+  // of the request id, which finds the error in the server log (12.B9).
+  const message =
+    err.response.status >= 500 && requestId
+      ? t('{{message}} Код для администратора: {{id}}', {
+          message: getFriendlyMessage(code),
+          id: requestId.slice(0, 8),
+        })
+      : getFriendlyMessage(code)
   return new ApiError(
     err.response.status,
     code,
-    getFriendlyMessage(code),
+    message,
     body?.error?.details,
+    requestId,
   )
 }
 

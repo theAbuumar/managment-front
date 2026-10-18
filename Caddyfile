@@ -7,9 +7,9 @@
 # API_UPSTREAM — бэк внутри сети compose.
 
 {$SITE_URL:http://localhost} {
-	# API, файлы локального хранилища, проверка здоровья и Swagger — на бэк.
+	# API, файлы локального хранилища, проверки живости и готовности и Swagger — на бэк.
 	# Поток событий (SSE) Caddy отдаёт без буферизации сам.
-	@backend path /api/* /internal/storage/* /health /docs /docs/*
+	@backend path /api/* /internal/storage/* /health /ready /docs /docs/*
 	handle @backend {
 		reverse_proxy {$API_UPSTREAM:api:3000}
 	}
