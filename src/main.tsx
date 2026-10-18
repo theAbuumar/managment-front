@@ -14,6 +14,7 @@ import { router } from './routes'
 import { prefetchPages } from './routes/lazyPage'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { Toaster } from '@/components/ui/toaster'
+import { ConnectionBanner } from '@/components/layout/ConnectionBanner'
 import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { getMe } from '@/api/auth'
@@ -106,6 +107,7 @@ bootstrap().finally(() => {
       <ThemeProvider>
         <RouterProvider router={router} />
         <Toaster />
+        <ConnectionBanner />
       </ThemeProvider>
     </StrictMode>,
   )

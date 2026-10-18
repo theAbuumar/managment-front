@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 import { shortName } from '@/lib/people'
 import { FileDropzone } from '@/features/work-items/attachments/FileDropzone'
 import { useUploads } from '@/features/work-items/attachments/useUploads'
+import { useAuthStore } from '@/stores/authStore'
+import { useDraft } from '@/lib/drafts'
 
 interface IssueRef {
   slug: string
@@ -49,7 +51,10 @@ export function SubmitReviewDialog({
   onDone: (issue: Issue) => void
 }) {
   const { t } = useTranslation()
-  const [report, setReport] = useState('')
+  // The report is a draft of this task (12.F5): closing the dialog, a reload or a
+  // lost connection keeps it; it is cleared once handed in.
+  const me = useAuthStore((s) => s.user?.id)
+  const [report, setReport, clearReport] = useDraft(me ? `${me}:report:${issue.id}` : null)
   const [busy, setBusy] = useState(false)
   // Files of the task not handed in yet; `picked` are the ones going with this report.
   const [available, setAvailable] = useState<Attachment[]>([])
@@ -93,10 +98,7 @@ export function SubmitReviewDialog({
   }
 
   function close(v: boolean) {
-    if (!v) {
-      setReport('')
-      setPicked(new Set())
-    }
+    if (!v) setPicked(new Set())
     onOpenChange(v)
   }
 
@@ -108,6 +110,7 @@ export function SubmitReviewDialog({
         attachment_ids: [...picked],
       })
       toast.success(t('Отправлено на проверку'))
+      clearReport()
       onDone(updated)
       close(false)
     } catch (err) {
@@ -211,7 +214,8 @@ export function ReturnReviewDialog({
   onDone,
 }: IssueRef & { open: boolean; onOpenChange: (v: boolean) => void; onDone: (issue: Issue) => void }) {
   const { t } = useTranslation()
-  const [comment, setComment] = useState('')
+  const me = useAuthStore((s) => s.user?.id)
+  const [comment, setComment, clearComment] = useDraft(me ? `${me}:return:${issue.id}` : null)
   const [busy, setBusy] = useState(false)
 
   async function submit() {
@@ -219,7 +223,7 @@ export function ReturnReviewDialog({
     try {
       const updated = await returnReview(slug, projectId, issue.id, comment.trim())
       toast.success(t('Возвращено на доработку'))
-      setComment('')
+      clearComment()
       onDone(updated)
       onOpenChange(false)
     } catch (err) {
@@ -278,7 +282,8 @@ export function DeadlineRequestDialog({
 }) {
   const { t } = useTranslation()
   const [date, setDate] = useState(() => isoToDateInput(issue.due_date, timeZone))
-  const [reason, setReason] = useState('')
+  const me = useAuthStore((s) => s.user?.id)
+  const [reason, setReason, clearReason] = useDraft(me ? `${me}:deadline:${issue.id}` : null)
   const [busy, setBusy] = useState(false)
   const iso = dateInputToIso(date)
 
@@ -288,7 +293,7 @@ export function DeadlineRequestDialog({
     try {
       await requestDeadlineChange(slug, projectId, issue.id, { new_due_date: iso, reason: reason.trim() })
       toast.success(t('Запрос на перенос срока отправлен контролёру'))
-      setReason('')
+      clearReason()
       onDone()
       onOpenChange(false)
     } catch (err) {

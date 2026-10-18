@@ -1,6 +1,12 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { getFriendlyMessage } from '@/lib/errorMessages'
+import {
+  markOffline,
+  markOnline,
+  setConnectionProbe,
+  waitForOnline,
+} from '@/lib/connection'
 
 // Same-origin by default: dev goes through the Vite proxy, production is served
 // with `/api` proxied to the backend (ADR-003). VITE_API_URL overrides it for a
@@ -37,26 +43,73 @@ axiosRequester.interceptors.request.use((config) => {
   return config
 })
 
+// ─── Connection (12.F5) ───────────────────────────────────────────────────────
+// No answer at all, or the proxy saying the API is down while it restarts, means
+// "no connection" — not an error of the request itself.
+
+const UNAVAILABLE = new Set([502, 503, 504])
+/** How long a read waits for the connection before it gives up. */
+const WAIT_FOR_SERVER_MS = 60_000
+
+function unreachable(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false
+  return !err.response || UNAVAILABLE.has(err.response.status)
+}
+
+// Any HTTP answer below 500 means the server is there.
+setConnectionProbe(async () => {
+  const res = await fetch(`${API_BASE_URL}/auth/providers`, {
+    cache: 'no-store',
+  })
+  return res.status < 500
+})
+
 // ─── Silent session refresh ───────────────────────────────────────────────────
 // The access token is short-lived; the refresh token lives in an httpOnly cookie.
 // On a 401 we refresh once (shared by all concurrent requests) and replay.
 
-let refreshing: Promise<string | null> | null = null
+interface RefreshResult {
+  token: string | null
+  /** True when the server could not be reached (the session may still be fine). */
+  unreachable: boolean
+}
+
+let refreshing: Promise<RefreshResult> | null = null
+
+function refresh(): Promise<RefreshResult> {
+  refreshing ??= (async (): Promise<RefreshResult> => {
+    // A refresh that hits a dropped connection waits for it once instead of
+    // treating the user as signed out (12.F5).
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        )
+        markOnline()
+        const { access_token, user } = res.data
+        useAuthStore.getState().setAuth(user, access_token)
+        return { token: access_token as string, unreachable: false }
+      } catch (err) {
+        if (!unreachable(err)) {
+          markOnline()
+          return { token: null, unreachable: false }
+        }
+        markOffline()
+        if (attempt > 0 || !(await waitForOnline(WAIT_FOR_SERVER_MS)))
+          return { token: null, unreachable: true }
+      }
+    }
+  })().finally(() => {
+    refreshing = null
+  })
+  return refreshing
+}
 
 /** Exchange the refresh cookie for a new access token; null when there is no session. */
-export function refreshSession(): Promise<string | null> {
-  refreshing ??= axios
-    .post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-    .then((res) => {
-      const { access_token, user } = res.data
-      useAuthStore.getState().setAuth(user, access_token)
-      return access_token as string
-    })
-    .catch(() => null)
-    .finally(() => {
-      refreshing = null
-    })
-  return refreshing
+export async function refreshSession(): Promise<string | null> {
+  return (await refresh()).token
 }
 
 // Requests that must never trigger a refresh-and-retry loop.
@@ -70,7 +123,7 @@ export function setSessionExpiredHandler(handler: () => void) {
 }
 
 function toApiError(err: AxiosError): ApiError {
-  if (!err.response) {
+  if (!err.response || UNAVAILABLE.has(err.response.status)) {
     return new ApiError(0, 'NETWORK_ERROR', getFriendlyMessage('NETWORK_ERROR'))
   }
   const body = err.response.data as
@@ -98,6 +151,7 @@ export function onApiMutation(listener: MutationListener): () => void {
 // Unwrap `data` on success; refresh-and-retry on 401; normalize errors to ApiError.
 axiosRequester.interceptors.response.use(
   (res) => {
+    markOnline()
     const method = res.config.method?.toLowerCase()
     if (method && method !== 'get' && method !== 'head') {
       mutationListeners.forEach((fn) => fn(res.config.url ?? ''))
@@ -106,9 +160,27 @@ axiosRequester.interceptors.response.use(
   },
   async (err: AxiosError) => {
     const original = err.config as
-      | (InternalAxiosRequestConfig & { _retried?: boolean })
+      | (InternalAxiosRequestConfig & { _retried?: boolean; _waited?: boolean })
       | undefined
     const url = original?.url ?? ''
+
+    if (unreachable(err)) {
+      markOffline()
+      // Reads are safe to repeat: wait for the server and send them again.
+      // Writes are not resent on their own — the form keeps what was typed.
+      const method = original?.method?.toLowerCase()
+      if (
+        original &&
+        !original._waited &&
+        (method === 'get' || method === 'head')
+      ) {
+        original._waited = true
+        if (await waitForOnline(WAIT_FOR_SERVER_MS))
+          return axiosRequester(original)
+      }
+      return Promise.reject(toApiError(err))
+    }
+    markOnline()
 
     if (
       err.response?.status === 401 &&
@@ -117,10 +189,16 @@ axiosRequester.interceptors.response.use(
       !NO_RETRY.some((p) => url.includes(p))
     ) {
       original._retried = true
-      const token = await refreshSession()
+      const { token, unreachable: offline } = await refresh()
       if (token) {
         original.headers.Authorization = `Bearer ${token}`
         return axiosRequester(original)
+      }
+      // No connection is not an expired session: stay signed in.
+      if (offline) {
+        return Promise.reject(
+          new ApiError(0, 'NETWORK_ERROR', getFriendlyMessage('NETWORK_ERROR')),
+        )
       }
       onSessionExpired?.()
     }

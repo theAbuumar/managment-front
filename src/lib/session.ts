@@ -2,6 +2,7 @@ import { logout as apiLogout } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { clearDrafts } from '@/lib/drafts'
 
 // Where to return after signing in (set before leaving for login / an OAuth
 // provider, consumed once the session exists).
@@ -31,6 +32,7 @@ export function clearLocalSession() {
   useAuthStore.getState().logout()
   useWorkspaceStore.getState().reset()
   useNotificationStore.getState().setUnreadCount(0)
+  clearDrafts()
 }
 
 /** Sign out: revoke the refresh token on the server, then clear local state. */

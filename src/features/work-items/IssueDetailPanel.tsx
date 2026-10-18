@@ -35,6 +35,7 @@ import { timeAgo, dateTime, longDate, dateInputToIso, isoToDateInput } from '@/l
 import { errorText } from '@/lib/errorMessages'
 import { issueLink } from '@/lib/links'
 import { useAuthStore } from '@/stores/authStore'
+import { useDraft } from '@/lib/drafts'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
   getIssue,
@@ -151,9 +152,12 @@ export function IssueDetailPanel({
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
   const [basisDraft, setBasisDraft] = useState('')
-  const [newComment, setNewComment] = useState('')
-
   const issueId = issue?.id
+  // The comment being typed is a draft of this task (12.F5): kept through a lost
+  // connection or a reload, and never carried over to another task.
+  const [newComment, setNewComment, clearNewComment] = useDraft(
+    currentUserId && issueId ? `${currentUserId}:comment:${issueId}` : null,
+  )
 
   async function loadControl(id: string) {
     const [rv, dr, ws, att] = await Promise.all([
@@ -344,7 +348,7 @@ export function IssueDetailPanel({
     try {
       const created = await createComment(slug, projectId, issueId, value)
       setComments((prev) => [...prev, created])
-      setNewComment('')
+      clearNewComment()
       refreshFeed()
     } catch (err) {
       toast.error(errorText(err, t('Не удалось отправить комментарий')))
