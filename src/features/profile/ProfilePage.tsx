@@ -41,7 +41,7 @@ import { errorText } from '@/lib/errorMessages'
 import { fullName } from '@/lib/people'
 import { browserTimeZone, timeZoneLabel } from '@/lib/timezones'
 import { LANGUAGES } from '@/i18n'
-import { TelegramSection } from './TelegramSection'
+import { ConnectedAccountsSection } from './ConnectedAccountsSection'
 import { NotificationPrefsSection } from './NotificationPrefsSection'
 import { NotificationChannelsSection } from './NotificationChannelsSection'
 
@@ -384,7 +384,7 @@ export function ProfilePage() {
 
           <NotificationPrefsSection />
 
-          <TelegramSection />
+          <ConnectedAccountsSection />
 
           {/* Danger zone */}
           <div className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">

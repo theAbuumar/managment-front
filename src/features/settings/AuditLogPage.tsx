@@ -34,6 +34,8 @@ const GROUPS: { key: AuditGroup | 'all'; label: () => string }[] = [
 const ACTIONS: Record<string, () => string> = {
   'auth.login': () => translate('Вход в систему'),
   'auth.logout': () => translate('Выход из системы'),
+  'auth.identity_linked': () => translate('Привязан способ входа'),
+  'auth.identity_unlinked': () => translate('Отвязан способ входа'),
   'member.added': () => translate('Добавлен сотрудник'),
   'member.updated': () => translate('Изменены роль или должность'),
   'member.removed': () => translate('Сотрудник исключён'),
@@ -68,6 +70,7 @@ const DANGER = new Set([
 const LOGIN_METHODS: Record<string, () => string> = {
   password: () => translate('по паролю'),
   email_code: () => translate('по коду на почту'),
+  email: () => translate('почта'),
   google: () => 'Google',
   github: () => 'GitHub',
   telegram: () => 'Telegram',
@@ -86,6 +89,12 @@ function details(e: AuditEntry): string {
   const parts: string[] = []
   if (e.action === 'auth.login' && typeof meta.method === 'string') {
     parts.push(LOGIN_METHODS[meta.method]?.() ?? meta.method)
+  }
+  if (
+    e.action.startsWith('auth.identity_') &&
+    typeof meta.provider === 'string'
+  ) {
+    parts.push(LOGIN_METHODS[meta.provider]?.() ?? meta.provider)
   }
   if (typeof meta.role === 'string') {
     const role = ROLE_LABELS[meta.role as MemberRole]?.() ?? meta.role
@@ -238,14 +247,12 @@ export function AuditLogPage() {
                           >
                             {ACTIONS[e.action]?.() ?? e.action}
                           </span>
-                          {e.target?.name &&
-                            e.action !== 'auth.login' &&
-                            e.action !== 'auth.logout' && (
-                              <span className="text-muted-foreground">
-                                {': '}
-                                {e.target.name}
-                              </span>
-                            )}
+                          {e.target?.name && !e.action.startsWith('auth.') && (
+                            <span className="text-muted-foreground">
+                              {': '}
+                              {e.target.name}
+                            </span>
+                          )}
                         </p>
                         {extra && (
                           <p className="truncate text-xs text-muted-foreground">

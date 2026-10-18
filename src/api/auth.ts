@@ -136,5 +136,13 @@ export const listIdentities = () =>
 export const linkTelegram = (token: string) =>
   client.post<unknown, Identity>('/auth/identities/telegram/link', { token })
 
+// Google/GitHub from the profile (4.F9, ADR-025): navigate to the returned consent
+// URL; the provider brings the browser back to /profile#linked=<provider> or
+// #link_error=<code>.
+export const startOAuthLink = (provider: 'google' | 'github') =>
+  client.post<unknown, { url: string }>(
+    `/auth/identities/${provider}/link/start`,
+  )
+
 export const unlinkIdentity = (provider: Identity['provider']) =>
   client.delete<unknown, void>(`/auth/identities/${provider}`)
