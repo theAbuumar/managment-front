@@ -10,14 +10,17 @@ import { useRealtime } from '@/lib/realtime'
 import { shortName } from '@/lib/people'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { useNotificationPrefs } from '@/stores/notificationPrefsStore'
 import { t } from '@/i18n'
 import { TYPE_META } from './notificationMeta'
+import { playNotificationSound } from './notificationSound'
 
 /**
  * A toast for every new notification as it arrives over the live stream
- * (Ф8, part of 8.F2). The event carries ids only, so the fresh rows are read
- * through the regular API; a click opens the issue and marks the row read.
- * Several notifications arriving together become one toast each, newest last.
+ * (Ф8 8.F2). The event carries ids only, so the fresh rows are read through the
+ * regular API; a click opens the issue and marks the row read. Several
+ * notifications arriving together become one toast each, newest last, and one
+ * chime (if the profile has the sound on).
  */
 export function useNotificationToasts() {
   const navigate = useNavigate()
@@ -46,6 +49,9 @@ export function useNotificationToasts() {
     for (const n of fresh) {
       shown.current.add(n.id)
       present(slug, n)
+    }
+    if (fresh.length && useNotificationPrefs.getState().sound) {
+      playNotificationSound()
     }
   }
 

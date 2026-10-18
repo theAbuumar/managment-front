@@ -58,6 +58,10 @@ const ERROR_MESSAGES: Record<string, () => string> = {
       'Контролёра, проверку и тип поручения меняет только контролёр или администратор.',
     ),
   TELEGRAM_NOT_CONFIRMED: () => t('Подключение не подтверждено в Telegram.'),
+  INVALID_IMAGE: () =>
+    t(
+      'Файл не похож на изображение PNG, JPEG или WebP до 2 МБ. Выберите другой.',
+    ),
 }
 
 export function getFriendlyMessage(code?: string): string {

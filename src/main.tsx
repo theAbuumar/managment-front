@@ -11,6 +11,7 @@ import './index.css'
 import '@/i18n'
 import { t } from '@/i18n'
 import { router } from './routes'
+import { prefetchPages } from './routes/lazyPage'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuthStore } from '@/stores/authStore'
@@ -22,6 +23,19 @@ import { clearLocalSession, takeNextPath } from '@/lib/session'
 import { APP_NAME } from '@/lib/constants'
 
 document.title = APP_NAME
+
+// A page chunk that no longer exists (the site was updated while this tab was
+// open) can't be loaded — reload once to pick up the new version.
+window.addEventListener('vite:preloadError', () => {
+  try {
+    const last = Number(sessionStorage.getItem('chunk-reload-at') ?? 0)
+    if (Date.now() - last < 10_000) return
+    sessionStorage.setItem('chunk-reload-at', String(Date.now()))
+  } catch {
+    return
+  }
+  window.location.reload()
+})
 
 // A session that can't be renewed (refresh cookie expired/revoked) sends the user
 // back to the login page once, with the current page remembered.
@@ -95,4 +109,8 @@ bootstrap().finally(() => {
       </ThemeProvider>
     </StrictMode>,
   )
+  // The rest of the pages download in the background once the first screen is up.
+  const idle =
+    window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1500))
+  idle(() => prefetchPages())
 })

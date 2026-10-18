@@ -4,30 +4,94 @@ import { NotFoundPage } from '@/routes/NotFoundPage'
 import { ErrorPage } from '@/routes/ErrorPage'
 import { AuthPage } from '@/features/auth/AuthPage'
 import { ProtectedRoute, WorkspaceRoute } from '@/features/auth/ProtectedRoute'
-import { CreateWorkspacePage } from '@/features/onboarding/CreateWorkspacePage'
-import { InviteMembersPage } from '@/features/onboarding/InviteMembersPage'
 import { SettingsLayout } from '@/features/settings/SettingsLayout'
-import { MembersPage } from '@/features/settings/MembersPage'
-import { GeneralPage } from '@/features/settings/GeneralPage'
-import { OrgStructurePage } from '@/features/settings/OrgStructurePage'
-import { ControlSettingsPage } from '@/features/settings/ControlSettingsPage'
-import { AuditLogPage } from '@/features/settings/AuditLogPage'
-import { ProjectsPage } from '@/features/projects/ProjectsPage'
 import { ProjectSettingsLayout } from '@/features/projects/ProjectSettingsLayout'
-import { ProjectGeneralPage } from '@/features/projects/ProjectGeneralPage'
-import { ProjectLabelsPage } from '@/features/projects/ProjectLabelsPage'
-import { WorkItemsPage } from '@/features/work-items/WorkItemsPage'
-import { WorkspaceInvitesPage } from '@/features/invitations/WorkspaceInvitesPage'
-import { InviteTokenPage } from '@/features/invitations/InviteTokenPage'
-import { NotificationsPage } from '@/features/notifications/NotificationsPage'
-import { YourWorkPage } from '@/features/your-work/YourWorkPage'
-import { HomePage } from '@/features/home/HomePage'
-import { ProfilePage } from '@/features/profile/ProfilePage'
-import { AnalyticsPage } from '@/features/analytics/AnalyticsPage'
-import { IssuesDrilldownPage } from '@/features/analytics/IssuesDrilldownPage'
-import { DepartmentPage } from '@/features/analytics/DepartmentPage'
-import { IssueDeepLinkPage } from '@/features/issues/IssueDeepLinkPage'
 import { FEATURES } from '@/lib/features'
+import { lazyPage } from '@/routes/lazyPage'
+
+// Pages load on first visit (own chunk each); the shell, login and guards stay in
+// the main bundle so the first screen needs one request.
+const CreateWorkspacePage = lazyPage(
+  () => import('@/features/onboarding/CreateWorkspacePage'),
+  'CreateWorkspacePage',
+)
+const InviteMembersPage = lazyPage(
+  () => import('@/features/onboarding/InviteMembersPage'),
+  'InviteMembersPage',
+)
+const MembersPage = lazyPage(
+  () => import('@/features/settings/MembersPage'),
+  'MembersPage',
+)
+const GeneralPage = lazyPage(
+  () => import('@/features/settings/GeneralPage'),
+  'GeneralPage',
+)
+const OrgStructurePage = lazyPage(
+  () => import('@/features/settings/OrgStructurePage'),
+  'OrgStructurePage',
+)
+const ControlSettingsPage = lazyPage(
+  () => import('@/features/settings/ControlSettingsPage'),
+  'ControlSettingsPage',
+)
+const AuditLogPage = lazyPage(
+  () => import('@/features/settings/AuditLogPage'),
+  'AuditLogPage',
+)
+const ProjectsPage = lazyPage(
+  () => import('@/features/projects/ProjectsPage'),
+  'ProjectsPage',
+)
+const ProjectGeneralPage = lazyPage(
+  () => import('@/features/projects/ProjectGeneralPage'),
+  'ProjectGeneralPage',
+)
+const ProjectLabelsPage = lazyPage(
+  () => import('@/features/projects/ProjectLabelsPage'),
+  'ProjectLabelsPage',
+)
+const WorkItemsPage = lazyPage(
+  () => import('@/features/work-items/WorkItemsPage'),
+  'WorkItemsPage',
+)
+const WorkspaceInvitesPage = lazyPage(
+  () => import('@/features/invitations/WorkspaceInvitesPage'),
+  'WorkspaceInvitesPage',
+)
+const InviteTokenPage = lazyPage(
+  () => import('@/features/invitations/InviteTokenPage'),
+  'InviteTokenPage',
+)
+const NotificationsPage = lazyPage(
+  () => import('@/features/notifications/NotificationsPage'),
+  'NotificationsPage',
+)
+const YourWorkPage = lazyPage(
+  () => import('@/features/your-work/YourWorkPage'),
+  'YourWorkPage',
+)
+const HomePage = lazyPage(() => import('@/features/home/HomePage'), 'HomePage')
+const ProfilePage = lazyPage(
+  () => import('@/features/profile/ProfilePage'),
+  'ProfilePage',
+)
+const AnalyticsPage = lazyPage(
+  () => import('@/features/analytics/AnalyticsPage'),
+  'AnalyticsPage',
+)
+const IssuesDrilldownPage = lazyPage(
+  () => import('@/features/analytics/IssuesDrilldownPage'),
+  'IssuesDrilldownPage',
+)
+const DepartmentPage = lazyPage(
+  () => import('@/features/analytics/DepartmentPage'),
+  'DepartmentPage',
+)
+const IssueDeepLinkPage = lazyPage(
+  () => import('@/features/issues/IssueDeepLinkPage'),
+  'IssueDeepLinkPage',
+)
 
 // Only sections with a real page are routed (ADR-019); new pages are added here
 // together with their flag in src/lib/features.ts.

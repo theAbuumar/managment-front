@@ -7,6 +7,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useSummarySync } from '@/stores/summaryStore'
 import { useRealtimeConnection } from '@/lib/realtime'
 import { useNotificationToasts } from '@/features/notifications/useNotificationToasts'
+import { useUnreadTitle } from '@/features/notifications/useUnreadTitle'
 
 function ActivePanel({ className }: { className?: string }) {
   return <SidebarPanel className={className} />
@@ -25,6 +26,7 @@ export function AppShell() {
   useRealtimeConnection()
   useSummarySync()
   useNotificationToasts()
+  useUnreadTitle()
 
   return (
     <div
