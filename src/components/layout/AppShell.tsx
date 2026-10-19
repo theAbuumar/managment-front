@@ -11,6 +11,7 @@ import { useRealtimeConnection } from '@/lib/realtime'
 import { useNotificationToasts } from '@/features/notifications/useNotificationToasts'
 import { useUnreadTitle } from '@/features/notifications/useUnreadTitle'
 import { useAiStatusSync } from '@/stores/aiStore'
+import { CommandPalette } from '@/features/search/CommandPalette'
 
 function ActivePanel({ className }: { className?: string }) {
   return <SidebarPanel className={className} />
@@ -41,6 +42,7 @@ export function AppShell() {
     >
       <div className="contents" data-print="hide">
         <Topbar onMenuClick={() => setMobileOpen(true)} />
+        <CommandPalette />
         {readOnly && (
           <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-800 dark:text-amber-300">
             <Eye size={13} className="shrink-0" />

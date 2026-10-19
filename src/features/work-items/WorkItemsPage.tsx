@@ -90,6 +90,25 @@ export function WorkItemsPage() {
       { replace: true },
     )
 
+  // `?create=1` (the command palette's «Новое поручение…», 7.F3) opens the
+  // create dialog once the project's states are loaded; closing it drops the flag.
+  const wantsCreate = searchParams.get('create') === '1' && !readOnly
+  const createDialogOpen =
+    createOpen || (wantsCreate && !loading && states.length > 0)
+  function setCreateDialogOpen(open: boolean) {
+    setCreateOpen(open)
+    if (!open && searchParams.has('create')) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('create')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }
+
   // The panel reads its issue straight from the board's list, so edits made
   // anywhere stay in sync with a single source of truth.
   const selectedIssue = issues.find((i) => i.id === selectedId) ?? null
@@ -479,8 +498,8 @@ export function WorkItemsPage() {
 
       {slug && projectId && (
         <CreateIssueDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
           slug={slug}
           projectId={projectId}
           states={states}

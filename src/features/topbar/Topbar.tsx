@@ -14,6 +14,7 @@ import {
   Settings,
   UserPlus,
   Mail,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -39,6 +40,10 @@ import {
 import { pluralize } from '@/lib/plural'
 import { fullName } from '@/lib/people'
 import { t as translate } from '@/i18n'
+import {
+  paletteShortcut,
+  usePaletteStore,
+} from '@/features/search/paletteStore'
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -81,6 +86,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
   const unreadCount = useNotificationStore((s) => s.unreadCount)
+  const openPalette = usePaletteStore((s) => s.setOpen)
 
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [meta, setMeta] = useState<Record<string, WsMeta>>({})
@@ -254,7 +260,23 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="flex-1" />
+      {/* Global search and commands (7.F3): Ctrl+K / «/» open the same palette. */}
+      <div className="flex flex-1 justify-center px-2">
+        <button
+          type="button"
+          onClick={() => openPalette(true)}
+          aria-label={t('Поиск ({{keys}})', { keys: paletteShortcut() })}
+          className="hidden h-8 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+        >
+          <Search size={14} className="shrink-0" />
+          <span className="flex-1 truncate text-left">
+            {t('Поиск задач, проектов, людей…')}
+          </span>
+          <kbd className="shrink-0 rounded border border-border px-1.5 font-sans text-[10px]">
+            {paletteShortcut()}
+          </kbd>
+        </button>
+      </div>
 
       {demo && (
         <span
@@ -267,6 +289,13 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right actions */}
       <div className="flex shrink-0 items-center gap-0.5">
+        <button
+          onClick={() => openPalette(true)}
+          aria-label={t('Поиск')}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted md:hidden"
+        >
+          <Search size={15} />
+        </button>
         <button
           onClick={toggle}
           aria-label={t('Сменить тему')}
