@@ -99,6 +99,7 @@ const AiDraftsPage = lazyPage(
   'AiDraftsPage',
 )
 const TrashPage = lazyPage(() => import('@/features/trash/TrashPage'), 'TrashPage')
+const AboutPage = lazyPage(() => import('@/features/about/AboutPage'), 'AboutPage')
 const IssueDeepLinkPage = lazyPage(
   () => import('@/features/issues/IssueDeepLinkPage'),
   'IssueDeepLinkPage',
@@ -158,6 +159,7 @@ export const router = createBrowserRouter([
           { path: 'your-work', element: <YourWorkPage /> },
           { path: 'profile', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'about', element: <AboutPage /> },
           // Canonical path — the backend's invite emails link here.
           { path: 'invitations', element: <WorkspaceInvitesPage /> },
           {

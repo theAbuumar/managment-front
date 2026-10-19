@@ -29,6 +29,25 @@
 
 ---
 
+## 2026-10-19 — 13.F4, 13.D4 «О системе» и версия 1.0.0
+**Фаза:** Ф13 · **Тип:** новая функция · **Ветка:** `claude/affectionate-wright-igm2y5`
+**Что изменено:**
+- **Страница «О системе»** (`/about`) открывается из меню профиля и из командной палитры («О системе и руководство»). На ней:
+  - назначение системы;
+  - версия сайта, версия и сборка сервера, время запуска сервера;
+  - «Руководство пользователя» — PDF, его раздаёт сам сайт (`public/docs/user-guide.pdf`), без внешних ссылок;
+  - «Мои данные»;
+  - горячие клавиши: Ctrl+K или ⌘K, «/», ↑↓ Enter, Ctrl+Enter, Esc;
+  - «Поддержка» — только если на стенде задан `SUPPORT_CONTACT`.
+- **Версия сайта** `1.0.0` берётся из `package.json` (`define` → `__APP_VERSION__` в `vite.config.ts`).
+**Файлы:** `src/features/about/AboutPage.tsx` (новый), `src/api/about.ts` (новый), `src/globals.d.ts` (новый), `public/docs/user-guide.pdf` (новый), `src/routes/index.tsx`, `src/features/topbar/Topbar.tsx`, `src/features/search/CommandPalette.tsx`, `vite.config.ts`, `package.json`, `package-lock.json`
+**API:** [бэк, 13.D4](../task-management-backend/CHANGELOG.md) — новый `src/api/about.ts`
+**Маршруты:** `/about`
+**i18n:** `ru` — тексты страницы
+**Конфигурация:** —
+**Тесты:** E2E `e2e/tests/about.spec.ts` — из меню профиля видны версии, PDF руководства отдаётся сайтом. Проверено вручную: 1440px и 375px, тёмная тема.
+**Как проверить:** меню профиля → «О системе».
+
 ## 2026-10-19 — 12.B13 «Мои данные» в профиле
 **Фаза:** Ф12 · **Тип:** новая функция · **Ветка:** `claude/affectionate-wright-igm2y5`
 **Что изменено:**

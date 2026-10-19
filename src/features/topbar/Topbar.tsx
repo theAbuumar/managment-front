@@ -15,6 +15,7 @@ import {
   UserPlus,
   Mail,
   Search,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -346,6 +347,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <DropdownMenuItem onClick={() => navigate('/profile')}>
               <User size={14} className="mr-2" />
               {t('Профиль')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/about')}>
+              <Info size={14} className="mr-2" />
+              {t('О системе')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

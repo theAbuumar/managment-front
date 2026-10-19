@@ -10,6 +10,7 @@ import {
   CircleDot,
   FolderOpen,
   History,
+  Info,
   Loader2,
   Moon,
   Plus,
@@ -441,6 +442,14 @@ export function CommandPalette() {
         label: t('Сменить пространство…'),
         aside: <ChevronRight size={14} className="text-muted-foreground" />,
         run: () => step('workspace'),
+      },
+      {
+        id: 'about',
+        text: t('О системе версия руководство справка горячие клавиши'),
+        show: true,
+        icon: iconOf(Info),
+        label: t('О системе и руководство'),
+        run: () => go('/about'),
       },
       {
         id: 'theme',
