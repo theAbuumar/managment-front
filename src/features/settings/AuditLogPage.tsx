@@ -61,6 +61,7 @@ const ACTIONS: Record<string, () => string> = {
   'project.purged': () => translate('Проект удалён навсегда'),
   'attachment.deleted': () => translate('Удалён файл'),
   'report.exported': () => translate('Выгружен отчёт'),
+  'user.data_exported': () => translate('Сотрудник выгрузил свои данные'),
   'workspace.updated': () => translate('Изменены настройки пространства'),
   'workspace.deleted': () => translate('Пространство удалено'),
   'settings.control_updated': () =>

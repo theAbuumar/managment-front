@@ -184,3 +184,24 @@ export const revokeSession = (id: string) =>
 /** «Выйти на всех других устройствах»: this browser stays signed in. */
 export const revokeOtherSessions = () =>
   client.post<unknown, { revoked: number }>('/auth/sessions/revoke-all')
+
+/**
+ * «Скачать мои данные» (12.B13): everything the system keeps about me as one
+ * JSON file (`GET /auth/me/export`); the download goes to the audit log.
+ */
+export async function downloadMyData(fallbackName: string): Promise<void> {
+  const blob = await client.get<unknown, Blob>('/auth/me/export', {
+    responseType: 'blob',
+  })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = fallbackName
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  // Keep the link until the browser has picked the file name up.
+  setTimeout(() => {
+    link.remove()
+    URL.revokeObjectURL(link.href)
+  }, 10_000)
+}

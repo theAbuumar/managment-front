@@ -74,7 +74,6 @@ export interface WorkspaceMember {
     last_name?: string | null
     first_name?: string | null
     middle_name?: string | null
-    phone?: string | null
     avatar_url: string | null
   }
   department?: { id: string; name: string; short_name: string | null } | null

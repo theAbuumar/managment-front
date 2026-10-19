@@ -45,6 +45,7 @@ import { ConnectedAccountsSection } from './ConnectedAccountsSection'
 import { NotificationPrefsSection } from './NotificationPrefsSection'
 import { NotificationChannelsSection } from './NotificationChannelsSection'
 import { SessionsSection } from './SessionsSection'
+import { MyDataSection } from './MyDataSection'
 
 // Profile page (Ф3 3.F1): ФИО, phone, language, time zone and avatar. Position and
 // department belong to the workspace's org structure and are set by an admin, so
@@ -388,6 +389,8 @@ export function ProfilePage() {
           <ConnectedAccountsSection />
 
           <SessionsSection />
+
+          <MyDataSection />
 
           {/* Danger zone */}
           <div className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
