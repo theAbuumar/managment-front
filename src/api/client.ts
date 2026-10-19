@@ -168,6 +168,10 @@ function toApiError(err: AxiosError): ApiError {
   const code = body?.error?.code ?? 'INTERNAL_ERROR'
   const header = err.response.headers?.['x-request-id']
   const requestId = typeof header === 'string' ? header : undefined
+  // Over a per-person limit (12.B5) the server says when to retry.
+  const retryAfter = (
+    body?.error?.details as { retry_after?: unknown } | undefined
+  )?.retry_after
   // A server failure is the admin's to look into: the message carries the start
   // of the request id, which finds the error in the server log (12.B9).
   const message =
@@ -176,7 +180,11 @@ function toApiError(err: AxiosError): ApiError {
           message: getFriendlyMessage(code),
           id: requestId.slice(0, 8),
         })
-      : getFriendlyMessage(code)
+      : code === 'RATE_LIMITED' && typeof retryAfter === 'number'
+        ? t('Слишком много действий за минуту. Повторите через {{n}} с.', {
+            n: retryAfter,
+          })
+        : getFriendlyMessage(code)
   return new ApiError(
     err.response.status,
     code,
