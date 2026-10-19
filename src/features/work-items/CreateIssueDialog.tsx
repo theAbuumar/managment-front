@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { CalendarRange, Check, Search, ShieldCheck, Star, UserCheck, Users } from 'lucide-react'
+import { CalendarRange, Check, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useAiEnabled } from '@/stores/aiStore'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -297,6 +299,8 @@ export function CreateIssueDialog({
   onCreated: (issue: Issue) => void
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const aiEnabled = useAiEnabled()
   const me = useAuthStore((s) => s.user?.id)
   const [kind, setKind] = useState<IssueKind>('assignment')
   const [title, setTitle] = useState('')
@@ -389,8 +393,23 @@ export function CreateIssueDialog({
       }}
     >
       <DialogContent className="max-w-xl">
-        <DialogHeader>
+        <DialogHeader className="flex-row items-center gap-2 space-y-0 pr-8">
           <DialogTitle>{isAssignment ? t('Новое поручение') : t('Новая задача')}</DialogTitle>
+          {/* Ф11 11.F2: many assignments at once from a protocol or a text. */}
+          {aiEnabled && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false)
+                navigate(`/ai/drafts?project=${projectId}`)
+              }}
+              className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-500/10 dark:text-violet-300"
+              title={t('AI найдёт поручения в протоколе или тексте и подготовит черновики')}
+            >
+              <Sparkles size={13} />
+              {t('Из текста или протокола')}
+            </button>
+          )}
         </DialogHeader>
 
         {/* Kind */}

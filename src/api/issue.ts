@@ -102,6 +102,8 @@ export interface Issue {
   is_distribution?: boolean
   /** Department a distribution child is addressed to. */
   department_id?: string | null
+  /** Created from an AI draft a person checked (Ф11, ADR-028). */
+  ai_assisted?: boolean
   department?: { id: string; name: string; short_name: string | null } | null
   /** Present in the workspace-wide list (7.B1). */
   project?: ProjectBrief
@@ -190,6 +192,8 @@ export interface CreateIssueBody {
   requires_review?: boolean
   basis?: string | null
   primary_assignee_id?: string
+  /** Made from an AI draft (POST WS/ai/draft-issues). */
+  ai_assisted?: boolean
 }
 
 export const createIssue = (
@@ -366,6 +370,7 @@ export interface DistributeBody {
   requires_review?: boolean
   basis?: string | null
   department_ids: string[]
+  ai_assisted?: boolean
 }
 
 /** Parent assignment + one child per department (head = responsible). Returns the parent with `distribution`. */

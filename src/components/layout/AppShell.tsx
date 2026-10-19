@@ -10,6 +10,7 @@ import { useReadOnly, useSummarySync } from '@/stores/summaryStore'
 import { useRealtimeConnection } from '@/lib/realtime'
 import { useNotificationToasts } from '@/features/notifications/useNotificationToasts'
 import { useUnreadTitle } from '@/features/notifications/useUnreadTitle'
+import { useAiStatusSync } from '@/stores/aiStore'
 
 function ActivePanel({ className }: { className?: string }) {
   return <SidebarPanel className={className} />
@@ -31,6 +32,7 @@ export function AppShell() {
   useSummarySync()
   useNotificationToasts()
   useUnreadTitle()
+  useAiStatusSync()
 
   return (
     <div

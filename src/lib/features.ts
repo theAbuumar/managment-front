@@ -8,7 +8,8 @@ export const FEATURES = {
   cycles: false,
   modules: false,
   analytics: true,
-  ai: false,
+  // Written (Ф11); shown only when the server has AI on for me (stores/aiStore).
+  ai: true,
   orgStructure: true,
   projectStates: false,
   projectMembers: false,

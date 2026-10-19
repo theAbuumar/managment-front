@@ -16,6 +16,7 @@ import {
   Printer,
   ChevronRight,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,8 @@ import { shortName } from '@/lib/people'
 import { shortDate } from '@/lib/dates'
 import { BarList, ChartCard, DataTable, StatTile } from './charts'
 import { CompletedTrend, DisciplineTrend } from './trend-charts'
+import { AiMemoDialog } from '@/features/ai/AiMemoDialog'
+import { useAiEnabled } from '@/stores/aiStore'
 import {
   bucketLabel,
   delta,
@@ -152,6 +155,9 @@ export function AnalyticsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [metric, setMetric] = useState<RatingMetric>('discipline')
   const [exporting, setExporting] = useState<string | null>(null)
+  // «Сформировать записку» (Ф11 11.F4), only while AI is on.
+  const aiEnabled = useAiEnabled()
+  const [memoOpen, setMemoOpen] = useState(false)
   const key = JSON.stringify(filters)
   const loading = loadedKey !== key
 
@@ -256,6 +262,21 @@ export function AnalyticsPage() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5 print-hidden">
+          {aiEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMemoOpen(true)}
+              disabled={!data}
+              title={t('Аналитическая записка от AI по текущим фильтрам')}
+            >
+              <Sparkles
+                size={14}
+                className="text-violet-600 dark:text-violet-400"
+              />
+              <span className="hidden sm:inline">{t('Записка')}</span>
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -519,6 +540,14 @@ export function AnalyticsPage() {
           )}
         </div>
       </div>
+      {aiEnabled && slug && memoOpen && (
+        <AiMemoDialog
+          open={memoOpen}
+          onOpenChange={setMemoOpen}
+          slug={slug}
+          filters={filters}
+        />
+      )}
     </div>
   )
 }

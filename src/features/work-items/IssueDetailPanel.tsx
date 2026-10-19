@@ -18,6 +18,7 @@ import {
   FileText,
   Paperclip,
   Send,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -68,6 +69,9 @@ import {
 import { ControlBlock } from './control/ControlBlock'
 import { isOwnEcho, useRealtime } from '@/lib/realtime'
 import { DistributionBlock } from './control/DistributionBlock'
+import { IssueAiSummary } from '@/features/ai/IssueAiSummary'
+import { AiMark } from '@/features/ai/AiBits'
+import { useAiEnabled } from '@/stores/aiStore'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
 
@@ -148,6 +152,9 @@ export function IssueDetailPanel({
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [watching, setWatching] = useState(false)
   const [feedLoading, setFeedLoading] = useState(true)
+  // «Кратко» (Ф11 11.F3): shown for the issue it was asked for only.
+  const aiEnabled = useAiEnabled()
+  const [summaryFor, setSummaryFor] = useState<string | null>(null)
 
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
@@ -447,15 +454,17 @@ export function IssueDetailPanel({
       <SheetContent className="flex w-full max-w-full flex-col gap-0 p-0 sm:max-w-4xl">
         {/* Header */}
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-4 pr-12">
-          <span className="font-mono text-xs text-muted-foreground">{identifier}</span>
+          {/* The chips give way on a phone so the buttons on the right stay reachable. */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">{identifier}</span>
           {isAssignment && (
-            <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+            <span className="hidden items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:inline-flex">
               <ShieldCheck size={12} />
               {t('Поручение')}
             </span>
           )}
           <span
-            className="ml-1 flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs"
+            className="ml-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs"
             style={{
               background: `${currentState?.color ?? '#94a3b8'}22`,
               color: currentState?.color ?? undefined,
@@ -465,7 +474,21 @@ export function IssueDetailPanel({
             {currentState?.name ?? '—'}
           </span>
           <DeadlineBadge dueDate={issue.due_date} group={group} completedAt={issue.completed_at} variant="full" />
-          <div className="ml-auto flex items-center gap-0.5">
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            {aiEnabled && (
+              <button
+                onClick={() => setSummaryFor(summaryFor === issue.id ? null : issue.id)}
+                className={cn(
+                  'flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors hover:bg-accent',
+                  summaryFor === issue.id ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground',
+                )}
+                title={t('Краткое содержание задачи от AI')}
+              >
+                <Sparkles size={15} />
+                <span className="hidden sm:inline">{t('Кратко')}</span>
+              </button>
+            )}
             <button
               onClick={toggleWatch}
               className={cn(
@@ -503,6 +526,14 @@ export function IssueDetailPanel({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
           {/* Main column */}
           <div className="flex min-w-0 flex-1 flex-col md:overflow-y-auto">
+            {aiEnabled && summaryFor === issue.id && (
+              <IssueAiSummary
+                slug={slug}
+                projectId={projectId}
+                issueId={issue.id}
+                onClose={() => setSummaryFor(null)}
+              />
+            )}
             <div className="border-b border-border p-4">
               <Textarea
                 value={titleDraft}
@@ -528,6 +559,12 @@ export function IssueDetailPanel({
                     placeholder={t('Основание (приказ, протокол)…')}
                     className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground/70"
                   />
+                </div>
+              )}
+
+              {issue.ai_assisted && (
+                <div className="mt-1.5">
+                  <AiMark label={t('Подготовлено с помощью AI, проверено автором')} />
                 </div>
               )}
 

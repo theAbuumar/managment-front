@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { LayoutGrid, Sparkles, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { enabled, type FeatureFlag } from '@/lib/features'
+import { useAiEnabled } from '@/stores/aiStore'
 
 interface RailItem {
   label: string
@@ -33,6 +34,11 @@ export function SidebarRail({ className }: { className?: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  // The AI section also needs the server's word (ADR-028): no AI item while it is off.
+  const aiEnabled = useAiEnabled()
+  const items = enabled(RAIL_NAV).filter(
+    (item) => item.feature !== 'ai' || aiEnabled,
+  )
 
   return (
     <div
@@ -41,7 +47,7 @@ export function SidebarRail({ className }: { className?: string }) {
         className,
       )}
     >
-      {enabled(RAIL_NAV).map((item) => {
+      {items.map((item) => {
         const active = item.match(pathname)
         return (
           <button
