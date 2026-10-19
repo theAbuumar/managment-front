@@ -23,13 +23,15 @@ import type { LucideIcon } from 'lucide-react'
 import { getProjects, type Project } from '@/api/project'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { enabled, type FeatureFlag } from '@/lib/features'
-import { useMySummary } from '@/stores/summaryStore'
+import { useMySummary, useReadOnly } from '@/stores/summaryStore'
 
 interface NavItem {
   label: string
   icon: LucideIcon
   to: string
   feature?: FeatureFlag
+  /** Hidden from guests: they only read, so the section is always empty for them. */
+  noGuest?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -42,7 +44,7 @@ const NAV_ITEMS: NavItem[] = [
 const WORKSPACE_ITEMS: NavItem[] = [
   { label: 'Проекты', icon: FolderOpen, to: '/projects-list' },
   { label: 'Приглашения', icon: Mail, to: '/invitations' },
-  { label: 'Корзина', icon: Trash2, to: '/trash', feature: 'trash' },
+  { label: 'Корзина', icon: Trash2, to: '/trash', feature: 'trash', noGuest: true },
 ]
 
 // Sub-rows revealed when a project is expanded.
@@ -101,6 +103,7 @@ export function SidebarPanel({ className }: { className?: string }) {
   }
 
   const summary = useMySummary()
+  const readOnly = useReadOnly()
   const workTab = location.pathname === '/your-work' ? new URLSearchParams(location.search).get('tab') : null
 
   function isActive(to: string) {
@@ -213,7 +216,9 @@ export function SidebarPanel({ className }: { className?: string }) {
           </button>
           {workspaceOpen && (
             <div className="mt-0.5 space-y-0.5">
-              {enabled(WORKSPACE_ITEMS).map((item) => (
+              {enabled(WORKSPACE_ITEMS)
+                .filter((item) => !(readOnly && item.noGuest))
+                .map((item) => (
                 <button
                   key={item.to}
                   onClick={() => navigate(item.to)}

@@ -101,7 +101,9 @@ export function ProjectGeneralPage() {
     if (!workspace || !projectId) return
     try {
       await deleteProject(workspace.slug, projectId)
-      toast.success(t('Проект перемещён в корзину'))
+      toast.success(t('Проект перемещён в корзину'), {
+        action: { label: t('Открыть корзину'), onClick: () => navigate('/trash') },
+      })
       navigate('/projects-list')
     } catch (err) {
       toast.error(errorText(err, t('Не удалось удалить проект')))

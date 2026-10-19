@@ -68,6 +68,14 @@ export function useRealtime(listener: Listener) {
   }, [])
 }
 
+/**
+ * Make every subscribed page reload what it shows, as after missed events — for
+ * a change the page did not make itself (an issue restored from a toast, 7.F7).
+ */
+export function reloadSubscribers() {
+  listeners.forEach((fn) => fn({ type: 'resync' }))
+}
+
 // This tab's own writes come back as events too; their effect is already on
 // screen (the page applied the API response), so pages skip such echoes.
 let lastOwnWrite = 0

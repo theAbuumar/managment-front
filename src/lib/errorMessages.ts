@@ -102,6 +102,8 @@ const ERROR_MESSAGES: Record<string, () => string> = {
     t('Текст или файл слишком большой для AI. Разделите его на части.'),
   AI_FILE_UNSUPPORTED: () =>
     t('Нужен файл .docx, .pdf или .txt до 10 МБ с читаемым текстом.'),
+  PROJECT_IN_TRASH: () =>
+    t('Проект этой задачи тоже в корзине. Сначала восстановите проект.'),
 }
 
 export function getFriendlyMessage(code?: string): string {

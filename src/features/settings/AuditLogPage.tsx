@@ -55,6 +55,10 @@ const ACTIONS: Record<string, () => string> = {
   'project.updated': () => translate('Изменён проект'),
   'project.deleted': () => translate('Удалён проект'),
   'issue.deleted': () => translate('Удалена задача'),
+  'issue.restored': () => translate('Задача восстановлена из корзины'),
+  'issue.purged': () => translate('Задача удалена навсегда'),
+  'project.restored': () => translate('Проект восстановлен из корзины'),
+  'project.purged': () => translate('Проект удалён навсегда'),
   'attachment.deleted': () => translate('Удалён файл'),
   'report.exported': () => translate('Выгружен отчёт'),
   'workspace.updated': () => translate('Изменены настройки пространства'),
@@ -69,6 +73,8 @@ const DANGER = new Set([
   'department.deleted',
   'project.deleted',
   'issue.deleted',
+  'issue.purged',
+  'project.purged',
   'attachment.deleted',
   'workspace.deleted',
 ])
@@ -117,6 +123,9 @@ function details(e: AuditEntry): string {
     parts.push(translate('должность: {{p}}', { p: meta.position }))
   }
   if (typeof meta.email === 'string') parts.push(meta.email)
+  if (e.action.endsWith('.purged') && meta.auto === true) {
+    parts.push(translate('автоматически: 30 дней в корзине'))
+  }
   if (e.action === 'report.exported' && typeof meta.report === 'string') {
     const name = REPORTS[meta.report]?.() ?? meta.report
     parts.push(name)

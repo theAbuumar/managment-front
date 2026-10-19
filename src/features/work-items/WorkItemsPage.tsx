@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LayoutGrid, List, AlertCircle, Plus, Send } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastIssueTrashed } from '@/features/trash/trashToast'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -289,7 +290,7 @@ export function WorkItemsPage() {
     setIssues((prev) => prev.filter((i) => i.id !== issue.id))
     try {
       await deleteIssue(slug, projectId, issue.id)
-      toast.success(t('Задача удалена'))
+      toastIssueTrashed(slug, issue.id)
     } catch (err) {
       setIssues(snapshot)
       toast.error(errMsg(err, t('Не удалось удалить задачу')))

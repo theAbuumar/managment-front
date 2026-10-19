@@ -3,7 +3,7 @@
 // to true in the same change that ships the page.
 export const FEATURES = {
   drafts: false,
-  trash: false,
+  trash: true,
   views: false,
   cycles: false,
   modules: false,

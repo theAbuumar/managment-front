@@ -98,6 +98,7 @@ const AiDraftsPage = lazyPage(
   () => import('@/features/ai/AiDraftsPage'),
   'AiDraftsPage',
 )
+const TrashPage = lazyPage(() => import('@/features/trash/TrashPage'), 'TrashPage')
 const IssueDeepLinkPage = lazyPage(
   () => import('@/features/issues/IssueDeepLinkPage'),
   'IssueDeepLinkPage',
@@ -173,6 +174,7 @@ export const router = createBrowserRouter([
                 { path: 'departments/:id', element: <DepartmentPage /> },
               ]
             : []),
+          ...(FEATURES.trash ? [{ path: 'trash', element: <TrashPage /> }] : []),
           // AI assistant (Ф11): the pages go home themselves while AI is off.
           ...(FEATURES.ai
             ? [

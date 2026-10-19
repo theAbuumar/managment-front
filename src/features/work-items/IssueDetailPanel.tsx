@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastIssueTrashed } from '@/features/trash/trashToast'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -319,7 +320,7 @@ export function IssueDetailPanel({
   async function handleDelete() {
     try {
       await deleteIssue(slug, projectId, issue!.id)
-      toast.success(t('Задача удалена'))
+      toastIssueTrashed(slug, issue!.id)
       onDeleted(issue!.id)
     } catch (err) {
       toast.error(errorText(err, t('Не удалось удалить задачу')))
@@ -380,6 +381,8 @@ export function IssueDetailPanel({
         return t('создал(а) задачу')
       case 'issue.deleted':
         return t('удалил(а) задачу')
+      case 'issue.restored':
+        return t('восстановил(а) задачу из корзины')
       case 'issue.assignee_added':
         return t('назначил(а) исполнителя: {{name}}', { name: memberName(a.new_value) })
       case 'issue.assignee_removed':
