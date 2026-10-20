@@ -44,7 +44,9 @@ const ACTIONS: Record<string, () => string> = {
   'member.left': () => translate('Сотрудник покинул пространство'),
   'member.deactivated': () => translate('Доступ сотрудника отключён'),
   'member.activated': () => translate('Доступ сотрудника восстановлен'),
-  'member.identity_reset': () => translate('Сброшена привязка входа сотрудника'),
+  'member.identity_reset': () =>
+    translate('Сброшена привязка входа сотрудника'),
+  'member.imported': () => translate('Импорт сотрудников'),
   'invite.sent': () => translate('Отправлено приглашение'),
   'project.member_added': () => translate('Добавлен участник проекта'),
   'project.member_removed': () => translate('Исключён участник проекта'),
@@ -96,6 +98,36 @@ const REPORTS: Record<string, () => string> = {
     translate('Справка об исполнительской дисциплине (PDF)'),
 }
 
+/** «строк: 24 · приглашено: 18 · …» of a staff import (4.F12); zero counts are left out. */
+function importCounts(meta: Record<string, unknown>): string[] {
+  const n = (key: string) =>
+    typeof meta[key] === 'number' ? (meta[key] as number) : 0
+  const parts = [translate('строк: {{n}}', { n: n('rows') })]
+  if (n('invited'))
+    parts.push(translate('приглашено: {{n}}', { n: n('invited') }))
+  if (n('updated'))
+    parts.push(translate('обновлено: {{n}}', { n: n('updated') }))
+  if (n('skipped'))
+    parts.push(translate('пропущено: {{n}}', { n: n('skipped') }))
+  if (n('failed'))
+    parts.push(translate('не удалось: {{n}}', { n: n('failed') }))
+  const departments = Array.isArray(meta.departments)
+    ? meta.departments.filter((d) => typeof d === 'string')
+    : []
+  if (departments.length) {
+    const head = departments.slice(0, 3).join(', ')
+    parts.push(
+      departments.length > 3
+        ? translate('созданы подразделения: {{list}} и ещё {{n}}', {
+            list: head,
+            n: departments.length - 3,
+          })
+        : translate('созданы подразделения: {{list}}', { list: head }),
+    )
+  }
+  return parts
+}
+
 /** Human details of an entry: the new role, the login method, the report… */
 function details(e: AuditEntry): string {
   const meta = e.meta ?? {}
@@ -113,6 +145,7 @@ function details(e: AuditEntry): string {
   if (e.action === 'auth.session_revoked' && meta.current === true) {
     parts.push(translate('на этом устройстве'))
   }
+  if (e.action === 'member.imported') parts.push(...importCounts(meta))
   if (e.action === 'auth.sessions_revoked' && typeof meta.count === 'number') {
     parts.push(translate('сеансов: {{count}}', { count: meta.count }))
   }

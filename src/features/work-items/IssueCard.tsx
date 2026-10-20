@@ -20,7 +20,7 @@ import {
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
-import { ChecklistBadge, RecurringMark } from '@/components/ui/checklist-badge'
+import { BlockedMark, ChecklistBadge, RecurringMark, SubtaskBadge } from '@/components/ui/checklist-badge'
 import { cn } from '@/lib/utils'
 import { shortName } from '@/lib/people'
 import { issueLink } from '@/lib/links'
@@ -296,6 +296,9 @@ export function IssueCard({
             <EyeOff size={12} />
           </span>
         )}
+        {group !== 'completed' && group !== 'cancelled' && (
+          <BlockedMark count={issue._count?.outgoing_links} />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -354,6 +357,7 @@ export function IssueCard({
         <StateMenu states={states} value={issue.state_id} onChange={onStateChange} />
         <DeadlineBadge dueDate={issue.due_date} group={group} completedAt={issue.completed_at} />
         <ChecklistBadge done={issue.checklist_done} total={issue.checklist_total} />
+        {!issue.is_distribution && <SubtaskBadge count={issue._count?.children} />}
         <RecurringMark ruleId={issue.recurring_rule_id} />
         {moves > 0 && (
           <span

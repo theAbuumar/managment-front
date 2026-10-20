@@ -57,6 +57,7 @@ const TYPES: { key: FeedType; label: () => string }[] = [
   { key: 'comments', label: () => translate('Комментарии') },
   { key: 'files', label: () => translate('Файлы') },
   { key: 'checklist', label: () => translate('Чек-листы') },
+  { key: 'structure', label: () => translate('Этапы и связи') },
   { key: 'trash', label: () => translate('Удаление') },
 ]
 
@@ -120,6 +121,9 @@ function phrase(item: FeedItem): string {
       shortName({ display_name: named(id) }) || translate('участник'),
     label: (id) => named(id) ?? translate('метка'),
     state: (id) => named(id) ?? '—',
+    cycle: named,
+    module: named,
+    issue: named,
   })
 }
 

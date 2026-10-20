@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
   getLabels,
@@ -18,60 +17,7 @@ import {
   type Label,
 } from '@/api/label'
 import { errorText } from '@/lib/errorMessages'
-import { t as translate } from '@/i18n'
-
-
-// A tidy default palette; a native colour input covers anything else.
-const PALETTE = [
-  '#6366f1',
-  '#0ea5e9',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
-  '#f97316',
-  '#64748b',
-]
-
-function ColorPicker({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (color: string) => void
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {PALETTE.map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onChange(c)}
-          className={cn(
-            'size-5 rounded-full ring-offset-2 ring-offset-background transition-transform hover:scale-110',
-            value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-ring',
-          )}
-          style={{ background: c }}
-          aria-label={translate('Цвет {{c}}', { c })}
-        />
-      ))}
-      <label
-        className="relative size-5 shrink-0 cursor-pointer rounded-full border border-border"
-        style={{ background: value }}
-        title={translate('Свой цвет')}
-      >
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 cursor-pointer opacity-0"
-        />
-      </label>
-    </div>
-  )
-}
+import { ColorPicker, DEFAULT_COLOR } from '@/features/projects/ColorPicker'
 
 function LabelRow({
   label,
@@ -176,7 +122,7 @@ export function ProjectLabelsPage() {
   const [labels, setLabels] = useState<Label[]>([])
   const [loading, setLoading] = useState(true)
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState(PALETTE[0])
+  const [newColor, setNewColor] = useState(DEFAULT_COLOR)
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Label | null>(null)
 
@@ -206,7 +152,7 @@ export function ProjectLabelsPage() {
       })
       setLabels((prev) => [...prev, label])
       setNewName('')
-      setNewColor(PALETTE[0])
+      setNewColor(DEFAULT_COLOR)
       toast.success(t('Метка создана'))
     } catch (err) {
       toast.error(errorText(err, t('Не удалось создать метку')))

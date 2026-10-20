@@ -53,6 +53,14 @@ const ProjectLabelsPage = lazyPage(
   () => import('@/features/projects/ProjectLabelsPage'),
   'ProjectLabelsPage',
 )
+const ProjectStatesPage = lazyPage(
+  () => import('@/features/projects/ProjectStatesPage'),
+  'ProjectStatesPage',
+)
+const ProjectMembersPage = lazyPage(
+  () => import('@/features/projects/ProjectMembersPage'),
+  'ProjectMembersPage',
+)
 const ProjectTemplatesPage = lazyPage(
   () => import('@/features/templates/TemplatesPage'),
   'ProjectTemplatesPage',
@@ -113,6 +121,8 @@ const AiDraftsPage = lazyPage(
 const TrashPage = lazyPage(() => import('@/features/trash/TrashPage'), 'TrashPage')
 const DraftsPage = lazyPage(() => import('@/features/drafts/DraftsPage'), 'DraftsPage')
 const ViewsPage = lazyPage(() => import('@/features/views/ViewsPage'), 'ViewsPage')
+const CyclesPage = lazyPage(() => import('@/features/cycles/CyclesPage'), 'CyclesPage')
+const ModulesPage = lazyPage(() => import('@/features/modules/ModulesPage'), 'ModulesPage')
 const ActivityFeedPage = lazyPage(
   () => import('@/features/activity/ActivityFeedPage'),
   'ActivityFeedPage',
@@ -166,6 +176,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="general" replace /> },
           { path: 'general', element: <ProjectGeneralPage /> },
+          { path: 'members', element: <ProjectMembersPage /> },
+          { path: 'states', element: <ProjectStatesPage /> },
           { path: 'labels', element: <ProjectLabelsPage /> },
           { path: 'templates', element: <ProjectTemplatesPage /> },
           { path: 'recurring', element: <ProjectRecurringPage /> },
@@ -208,6 +220,13 @@ export const router = createBrowserRouter([
                 { path: 'views', element: <ViewsPage /> },
                 { path: 'projects/:id/views', element: <ViewsPage /> },
               ]
+            : []),
+          // Этапы and модули of a project (4.F3, 4.F4).
+          ...(FEATURES.cycles
+            ? [{ path: 'projects/:id/cycles', element: <CyclesPage /> }]
+            : []),
+          ...(FEATURES.modules
+            ? [{ path: 'projects/:id/modules', element: <ModulesPage /> }]
             : []),
           // AI assistant (Ф11): the pages go home themselves while AI is off.
           ...(FEATURES.ai

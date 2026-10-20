@@ -42,6 +42,10 @@ export interface BoardFilters {
   kind: IssueKind | null
   /** Any of these labels. */
   label: string[]
+  /** One cycle (этап, 4.F3): the board shows its issues under a banner. */
+  cycle: string | null
+  /** One module (4.F4), likewise. */
+  module: string | null
 }
 
 /** URL keys of the board's filters (besides `view`, the display mode). */
@@ -52,6 +56,8 @@ export const BOARD_KEYS = [
   'assignee',
   'kind',
   'label',
+  'cycle',
+  'module',
 ] as const
 
 const list = (v: string | null) => (v ? v.split(',').filter(Boolean) : [])
@@ -71,6 +77,8 @@ export function readBoardFilters(params: URLSearchParams): BoardFilters {
     assignee: params.get('assignee') || null,
     kind: kind === 'task' || kind === 'assignment' ? kind : null,
     label: list(params.get('label')),
+    cycle: params.get('cycle') || null,
+    module: params.get('module') || null,
   }
 }
 
@@ -83,10 +91,15 @@ export function boardFilterValues(f: BoardFilters): Record<string, string> {
   if (f.assignee) out.assignee = f.assignee
   if (f.kind) out.kind = f.kind
   if (f.label.length) out.label = f.label.join(',')
+  if (f.cycle) out.cycle = f.cycle
+  if (f.module) out.module = f.module
   return out
 }
 
-/** How many panel filters are on (the quick filter has its own row). */
+/**
+ * How many panel filters are on (the quick filter has its own row; a cycle or a
+ * module has its banner and is not counted — «Сбросить фильтры» keeps it).
+ */
 export function panelCount(f: BoardFilters): number {
   return (
     (f.group.length ? 1 : 0) +
@@ -147,6 +160,9 @@ export function matchesBoard(
     if (!issue.assignees.some((a) => a.user_id === who)) return false
   }
   if (f.label.length && !issue.labels.some((l) => f.label.includes(l.label_id)))
+    return false
+  if (f.cycle && issue.cycle_id !== f.cycle) return false
+  if (f.module && !issue.modules?.some((m) => m.module_id === f.module))
     return false
   return true
 }
@@ -225,6 +241,8 @@ export interface FilterNames {
   department?: (id: string) => string | undefined
   project?: (id: string) => string | undefined
   label?: (id: string) => string | undefined
+  cycle?: (id: string) => string | undefined
+  module?: (id: string) => string | undefined
 }
 
 /** Human chips for a set of filters: «Просрочено», «Приоритет: срочный, высокий»… */
@@ -234,6 +252,17 @@ export function describeFilters(
 ): string[] {
   const chips: string[] = []
   const values = (key: string) => list(single(filters[key]) ?? null)
+  // The cycle or module first: it is what the picture is about.
+  const cycle = single(filters.cycle)
+  if (cycle) {
+    const name = names.cycle?.(cycle)
+    chips.push(name ? t('Этап «{{name}}»', { name }) : t('Этап'))
+  }
+  const mod = single(filters.module)
+  if (mod) {
+    const name = names.module?.(mod)
+    chips.push(name ? t('Модуль «{{name}}»', { name }) : t('Модуль'))
+  }
   const quick = QUICK_FILTERS.find((q) => q.key === single(filters.quick))
   if (quick && quick.key !== 'all') chips.push(quick.label())
   const kind = single(filters.kind)

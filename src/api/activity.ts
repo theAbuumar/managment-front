@@ -25,10 +25,17 @@ interface ActivityPage {
   next_cursor: string | null
 }
 
-// Newest-first activity history for an issue.
-export const getActivity = (slug: string, projectId: string, issueId: string) =>
+// Newest-first activity history for an issue, a page at a time (4.F11): pass the
+// previous page's `next_cursor` for the older entries.
+export const getActivity = (
+  slug: string,
+  projectId: string,
+  issueId: string,
+  cursor?: string | null,
+) =>
   client.get<unknown, ActivityPage>(
     `/workspaces/${slug}/projects/${projectId}/issues/${issueId}/activity/`,
+    { params: { limit: 50, ...(cursor && { cursor }) } },
   )
 
 // ─── Workspace feed (7.B3) ────────────────────────────────────────────────────
@@ -44,6 +51,8 @@ export type FeedType =
   | 'files'
   | 'checklist'
   | 'trash'
+  /** Cycles, modules, sub-issues and relations (4.F3–4.F7). */
+  | 'structure'
 
 export interface FeedItem {
   id: string

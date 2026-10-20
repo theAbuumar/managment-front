@@ -10,7 +10,12 @@ import {
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
-import { ChecklistBadge, RecurringMark } from '@/components/ui/checklist-badge'
+import {
+  BlockedMark,
+  ChecklistBadge,
+  RecurringMark,
+  SubtaskBadge,
+} from '@/components/ui/checklist-badge'
 import { shortName } from '@/lib/people'
 import { cn } from '@/lib/utils'
 import { VirtualStack } from '@/components/ui/virtual-stack'
@@ -107,11 +112,20 @@ const IssueRow = memo(function IssueRow({
         ruleId={issue.recurring_rule_id}
         className="hidden sm:inline"
       />
+      {group !== 'completed' && group !== 'cancelled' && (
+        <BlockedMark count={issue._count?.outgoing_links} />
+      )}
       <ChecklistBadge
         done={issue.checklist_done}
         total={issue.checklist_total}
         className="hidden sm:flex"
       />
+      {!issue.is_distribution && (
+        <SubtaskBadge
+          count={issue._count?.children}
+          className="hidden sm:flex"
+        />
+      )}
       <DeadlineBadge
         dueDate={issue.due_date}
         group={group}

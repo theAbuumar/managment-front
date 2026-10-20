@@ -42,6 +42,8 @@ import { DistributeDialog } from './DistributeDialog'
 import { IssueDetailPanel } from './IssueDetailPanel'
 import { SubmitReviewDialog } from './control/ControlDialogs'
 import { FilterPanel } from '@/features/views/FilterPanel'
+import { ScopeBanner } from '@/features/cycles/ScopeBanner'
+import { joinScope, useProjectScopes, type Scope, type ScopeKind } from '@/features/cycles/scopes'
 import { ViewsMenu } from '@/features/views/ViewsMenu'
 import {
   BOARD_KEYS,
@@ -171,6 +173,8 @@ export function WorkItemsPage() {
   // by the reminder scheduler — arrive over SSE; the touched issue is re-read
   // and put in place. `resync` (missed events) reloads the whole board.
   const [reloadTick, setReloadTick] = useState(0)
+  // Этапы and модули of the project (4.F3, 4.F4): the banner, bulk bar and chips.
+  const scopes = useProjectScopes(slug, projectId, reloadTick)
   const refetchTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   useEffect(() => {
     const timers = refetchTimers.current
@@ -392,7 +396,39 @@ export function WorkItemsPage() {
   const filterChips = describeFilters(viewFilters, {
     person: (id) => shortName(members.find((m) => m.user_id === id)?.user),
     label: (id) => labels.find((l) => l.id === id)?.name,
+    cycle: (id) => scopes.cycles?.find((c) => c.id === id)?.name,
+    module: (id) => scopes.modules?.find((m) => m.id === id)?.name,
   })
+
+  // Issues just added to a cycle or module from the banner: the server's echo of
+  // our own write is skipped, so the list is patched the way the server did it.
+  function joinIssues(kind: ScopeKind, scopeId: string, ids: string[]) {
+    const added = new Set(ids)
+    setIssues((prev) => prev.map((i) => (added.has(i.id) ? joinScope(i, kind, scopeId) : i)))
+  }
+
+  function scopeBanner(kind: ScopeKind, scopeId: string | null, list: Scope[] | null) {
+    if (!scopeId || !slug || !projectId) return null
+    return (
+      <ScopeBanner
+        kind={kind}
+        id={scopeId}
+        // undefined while the list loads; null — no such cycle / module any more.
+        scope={list ? (list.find((x) => x.id === scopeId) ?? null) : undefined}
+        slug={slug}
+        projectId={projectId}
+        identifier={project?.identifier ?? ''}
+        issues={issues}
+        states={states}
+        cycles={scopes.cycles ?? []}
+        members={members}
+        readOnly={readOnly}
+        onClear={() => updateFilters(() => ({ [kind]: null }))}
+        onAdded={(ids) => joinIssues(kind, scopeId, ids)}
+        onSaved={(item) => scopes.save(kind, item)}
+      />
+    )
+  }
 
   /** A task's deadline is the assignee's to plan; an assignment's — its controller's (5.B5). */
   function canMoveDeadline(issue: Issue) {
@@ -569,6 +605,14 @@ export function WorkItemsPage() {
         </div>
       </div>
 
+      {/* The board of one cycle / module (4.F3, 4.F4) */}
+      {!loading && !error && (
+        <>
+          {scopeBanner('cycle', filters.cycle, scopes.cycles)}
+          {scopeBanner('module', filters.module, scopes.modules)}
+        </>
+      )}
+
       {/* Quick filters */}
       {!loading && !error && (
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4 py-1.5">
@@ -674,6 +718,8 @@ export function WorkItemsPage() {
             states={states}
             members={members}
             labels={labels}
+            cycles={scopes.cycles ?? []}
+            modules={scopes.modules ?? []}
             onDone={afterBulk}
             onClear={() => setSelection(new Set())}
           />

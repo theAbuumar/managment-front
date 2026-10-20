@@ -7,14 +7,15 @@ export const FEATURES = {
   // Workspace feed (7.F9): admins and department heads.
   activity: true,
   views: true,
-  cycles: false,
-  modules: false,
+  // Этапы and модули of a project (4.F3, 4.F4).
+  cycles: true,
+  modules: true,
   analytics: true,
   // Written (Ф11); shown only when the server has AI on for me (stores/aiStore).
   ai: true,
   orgStructure: true,
-  projectStates: false,
-  projectMembers: false,
+  projectStates: true,
+  projectMembers: true,
 } as const
 
 export type FeatureFlag = keyof typeof FEATURES

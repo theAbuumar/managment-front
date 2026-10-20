@@ -116,25 +116,25 @@ export const inviteMember = (
   workspaceSlug: string,
   email: string,
   role: string,
+  place: { department_id?: string | null; position?: string | null } = {},
 ) =>
   client.post<unknown, unknown>(`/workspaces/${workspaceSlug}/members/invite`, {
     email,
     role,
+    ...place,
   })
 
-// Directly add an already-registered user by id (admin+).
+// «Добавить сразу» (4.F10, admin+): a registered person by email joins at once,
+// without an invitation. No account → 404 USER_NOT_FOUND (send an invitation).
 export const addMember = (
   workspaceSlug: string,
-  userId: string,
-  role: AssignableRole = 'member',
-) =>
-  client.post<unknown, WorkspaceMember>(
-    `/workspaces/${workspaceSlug}/members`,
-    {
-      user_id: userId,
-      role,
-    },
-  )
+  body: {
+    email: string
+    role?: AssignableRole
+    department_id?: string | null
+    position?: string | null
+  },
+) => client.post<unknown, WorkspaceMember>(`/workspaces/${workspaceSlug}/members`, body)
 
 // Change a member's role (admin+). The owner's role cannot be changed, and you
 // cannot change your own role — the backend rejects both with 403.
@@ -175,7 +175,14 @@ export interface InviteExistingUserResult {
 // sent over Telegram where available. Accepting it makes them a member.
 export const inviteExistingUser = (
   workspaceSlug: string,
-  body: { email?: string; user_id?: string; role?: AssignableRole },
+  body: {
+    email?: string
+    user_id?: string
+    role?: AssignableRole
+    /** Applied on accepting (4.F10). */
+    department_id?: string | null
+    position?: string | null
+  },
 ) =>
   client.post<unknown, InviteExistingUserResult>(
     `/workspaces/${workspaceSlug}/members/invite-user`,
@@ -231,3 +238,76 @@ export const resetMemberIdentity = (
     `/workspaces/${workspaceSlug}/members/${userId}/identities/${provider}`,
   )
 
+
+// ─── Staff import (4.F12, 4.B1, admin+) ──────────────────────────────────────
+
+export type ImportRowStatus = 'invite_existing' | 'invite_new' | 'update' | 'unchanged' | 'error'
+export type ImportRowResult = 'invited' | 'updated' | 'unchanged' | 'skipped' | 'failed'
+export type ImportField = 'full_name' | 'email' | 'department' | 'position' | 'role'
+export type ImportErrorCode =
+  | 'NAME_REQUIRED'
+  | 'NAME_INCOMPLETE'
+  | 'NAME_TOO_LONG'
+  | 'EMAIL_REQUIRED'
+  | 'EMAIL_INVALID'
+  | 'EMAIL_DUPLICATE'
+  | 'ROLE_INVALID'
+  | 'DEPARTMENT_TOO_LONG'
+  | 'POSITION_TOO_LONG'
+  | 'ACCOUNT_INACTIVE'
+
+export interface ImportRow {
+  /** Line number in the file (the header is line 1). */
+  row: number
+  full_name: string
+  email: string
+  department: string | null
+  position: string | null
+  role: AssignableRole
+  status: ImportRowStatus
+  errors: { field: ImportField; code: ImportErrorCode }[]
+  /** Departments of this row's path still to be created. */
+  new_departments: string[]
+  result?: ImportRowResult
+  delivered_to?: InviteChannel[]
+  failure?: { code: string; message: string }
+}
+
+export interface ImportReport {
+  dry_run: boolean
+  summary: {
+    total: number
+    errors: number
+    invite_existing: number
+    invite_new: number
+    update: number
+    unchanged: number
+    departments_to_create: string[]
+    invited?: number
+    updated?: number
+    failed?: number
+  }
+  rows: ImportRow[]
+}
+
+/** The XLSX template: «Сотрудники», «Как заполнить», «Подразделения». */
+export const getImportTemplate = (workspaceSlug: string) =>
+  client.get<unknown, Blob>(`/workspaces/${workspaceSlug}/members/import/template`, {
+    responseType: 'blob',
+  })
+
+/**
+ * Check (`dryRun`, changes nothing) or run the import of an .xlsx/.csv file. A
+ * run skips rows with errors and invites the rest with their place in the org
+ * structure (ADR-031).
+ */
+export const importMembers = (
+  workspaceSlug: string,
+  file: { name: string; contentBase64: string },
+  dryRun: boolean,
+) =>
+  client.post<unknown, ImportReport>(`/workspaces/${workspaceSlug}/members/import`, {
+    file_name: file.name,
+    content_base64: file.contentBase64,
+    dry_run: dryRun,
+  })

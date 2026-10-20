@@ -71,3 +71,25 @@ export const updateProject = (
 // Soft delete: the project goes to the trash.
 export const deleteProject = (slug: string, id: string) =>
   client.delete<unknown, unknown>(`/workspaces/${slug}/projects/${id}`)
+
+// ─── Project members (4.F2) ──────────────────────────────────────────────────
+// Being in a project opens a private project to the person; access itself comes
+// from the workspace role (ADR-031), so the project role is not shown.
+
+export interface ProjectMember {
+  project_id: string
+  user_id: string
+  created_at: string
+  user: UserBrief
+}
+
+export const getProjectMembers = (slug: string, projectId: string) =>
+  client.get<unknown, ProjectMember[]>(`/workspaces/${slug}/projects/${projectId}/members`)
+
+export const addProjectMember = (slug: string, projectId: string, userId: string) =>
+  client.post<unknown, ProjectMember>(`/workspaces/${slug}/projects/${projectId}/members`, {
+    user_id: userId,
+  })
+
+export const removeProjectMember = (slug: string, projectId: string, userId: string) =>
+  client.delete<unknown, void>(`/workspaces/${slug}/projects/${projectId}/members/${userId}`)

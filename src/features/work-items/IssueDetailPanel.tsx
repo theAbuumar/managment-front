@@ -5,7 +5,6 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   Trash2,
   Check,
-  Search,
   Plus,
   CalendarRange,
   UserPlus,
@@ -22,11 +21,13 @@ import {
   Sparkles,
   FileStack,
   Repeat,
+  AlertTriangle,
+  RefreshCw,
+  Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { toastIssueTrashed } from '@/features/trash/trashToast'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -36,12 +37,11 @@ import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { shortName, fullName } from '@/lib/people'
-import { timeAgo, dateTime, longDate, dateInputToIso, isoToDateInput } from '@/lib/dates'
+import { timeAgo, dateTime, longDate, shortDate, dateInputToIso, isoToDateInput } from '@/lib/dates'
 import { errorText } from '@/lib/errorMessages'
 import { issueLink } from '@/lib/links'
 import { activityText } from '@/lib/activityText'
 import { useAuthStore } from '@/stores/authStore'
-import { useDraft } from '@/lib/drafts'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
   getIssue,
@@ -57,7 +57,7 @@ import {
 import type { State } from '@/api/state'
 import type { Project } from '@/api/project'
 import { getLabels, type Label } from '@/api/label'
-import { getComments, createComment, deleteComment, type Comment } from '@/api/comment'
+import { getComments, type Comment } from '@/api/comment'
 import { getActivity, type Activity } from '@/api/activity'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
 import { getAttachments, type Attachment } from '@/api/attachment'
@@ -80,49 +80,15 @@ import { DistributionBlock } from './control/DistributionBlock'
 import { IssueAiSummary } from '@/features/ai/IssueAiSummary'
 import { AiMark } from '@/features/ai/AiBits'
 import { useAiEnabled } from '@/stores/aiStore'
+import { optionCls, triggerCls, PopContent, SearchBox, PropRow } from './panelParts'
+import { CommentsSection } from './comments/CommentsSection'
+import { RelationsSection } from './relations/RelationsSection'
+import { SubtasksSection } from './subtasks/SubtasksSection'
+import { FEATURES } from '@/lib/features'
+import { getCycles, addIssuesToCycle, removeIssueFromCycle, type Cycle } from '@/api/cycle'
+import { getModules, addIssuesToModule, removeIssueFromModule, type Module } from '@/api/module'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
-
-const popCls =
-  'z-50 w-64 overflow-hidden rounded-md border border-border bg-popover p-1 shadow-md data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95'
-const optionCls =
-  'flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-const triggerCls =
-  'flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-sm text-foreground transition-colors hover:border-border hover:bg-accent disabled:pointer-events-none'
-
-function PopContent({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <PopoverPrimitive.Portal>
-      <PopoverPrimitive.Content align="end" sideOffset={6} className={cn(popCls, className)}>
-        {children}
-      </PopoverPrimitive.Content>
-    </PopoverPrimitive.Portal>
-  )
-}
-
-function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  return (
-    <div className="mb-1 flex items-center gap-2 border-b border-border px-2 pb-2">
-      <Search className="size-3.5 shrink-0 text-muted-foreground" />
-      <input
-        autoFocus
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-      />
-    </div>
-  )
-}
-
-function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 py-1.5">
-      <span className="mt-1.5 w-24 shrink-0 text-xs text-muted-foreground">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  )
-}
 
 export function IssueDetailPanel({
   issue,
@@ -155,6 +121,21 @@ export function IssueDetailPanel({
   const [labels, setLabels] = useState<Label[]>([])
   const [comments, setComments] = useState<Comment[]>([])
   const [activity, setActivity] = useState<Activity[]>([])
+  // Older history comes a page at a time (4.F11).
+  const [activityCursor, setActivityCursor] = useState<string | null>(null)
+  const [olderLoading, setOlderLoading] = useState(false)
+  // «ACCR-12 Название» of linked issues and the parent, for the history (4.F6, 4.F7).
+  const [issueNames, setIssueNames] = useState<Map<string, string>>(() => new Map())
+  const rememberNames = (entries: [string, string][]) =>
+    setIssueNames((prev) => {
+      if (entries.every(([id, name]) => prev.get(id) === name)) return prev
+      const next = new Map(prev)
+      for (const [id, name] of entries) next.set(id, name)
+      return next
+    })
+  // The project's cycles and modules for the «Этап» and «Модули» fields (4.F3, 4.F4).
+  const [cycles, setCycles] = useState<Cycle[]>([])
+  const [modules, setModules] = useState<Module[]>([])
   const [reviews, setReviews] = useState<IssueReview[]>([])
   const [deadlineRequests, setDeadlineRequests] = useState<DeadlineRequest[]>([])
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -170,11 +151,6 @@ export function IssueDetailPanel({
   const [descDraft, setDescDraft] = useState('')
   const [basisDraft, setBasisDraft] = useState('')
   const issueId = issue?.id
-  // The comment being typed is a draft of this task (12.F5): kept through a lost
-  // connection or a reload, and never carried over to another task.
-  const [newComment, setNewComment, clearNewComment] = useDraft(
-    currentUserId && issueId ? `${currentUserId}:comment:${issueId}` : null,
-  )
 
   async function loadControl(id: string) {
     const [rv, dr, ws, att] = await Promise.all([
@@ -198,17 +174,22 @@ export function IssueDetailPanel({
       setDescDraft(issue.description ?? '')
       setBasisDraft(issue.basis ?? '')
       setFeedLoading(true)
-      const [cs, act, mem, lbl] = await Promise.all([
+      const [cs, act, mem, lbl, cyc, mods] = await Promise.all([
         getComments(slug, projectId, issueId).catch(() => []),
         getActivity(slug, projectId, issueId).catch(() => ({ data: [], next_cursor: null })),
         getWorkspaceMembers(slug).catch(() => []),
         getLabels(slug, projectId).catch(() => []),
+        FEATURES.cycles ? getCycles(slug, projectId).catch(() => []) : [],
+        FEATURES.modules ? getModules(slug, projectId).catch(() => []) : [],
       ])
       if (cancelled) return
       setComments(cs)
       setActivity(act.data)
+      setActivityCursor(act.next_cursor)
       setMembers(mem)
       setLabels(lbl)
+      setCycles(cyc)
+      setModules(mods)
       await loadControl(issueId)
       if (!cancelled) setFeedLoading(false)
     })()
@@ -233,7 +214,10 @@ export function IssueDetailPanel({
       getComments(slug, projectId, issueId).catch(() => null),
       withIssue ? getIssue(slug, projectId, issueId).catch(() => null) : null,
     ])
-    if (act) setActivity(act.data)
+    if (act) {
+      setActivity(act.data)
+      setActivityCursor(act.next_cursor)
+    }
     if (cs) setComments(cs)
     if (fresh) onUpdated(fresh)
     await loadControl(issueId)
@@ -389,33 +373,59 @@ export function IssueDetailPanel({
     }
   }
 
-  async function addNewComment() {
-    const value = newComment.trim()
-    if (!value || !issueId) return
+  async function loadOlderActivity() {
+    if (!issueId || !activityCursor || olderLoading) return
+    setOlderLoading(true)
     try {
-      const created = await createComment(slug, projectId, issueId, value)
-      setComments((prev) => [...prev, created])
-      clearNewComment()
-      refreshFeed()
+      const page = await getActivity(slug, projectId, issueId, activityCursor)
+      setActivity((prev) => [...prev, ...page.data.filter((a) => !prev.some((p) => p.id === a.id))])
+      setActivityCursor(page.next_cursor)
     } catch (err) {
-      toast.error(errorText(err, t('Не удалось отправить комментарий')))
+      toast.error(errorText(err, t('Не удалось загрузить историю')))
+    } finally {
+      setOlderLoading(false)
     }
   }
 
-  async function removeComment(commentId: string) {
-    if (!issueId) return
-    const snapshot = comments
-    setComments((prev) => prev.filter((c) => c.id !== commentId))
+  // «Этап» (one) and «Модули» (several): the issue moves through the cycle and
+  // module endpoints, then the board gets the fresh issue.
+  async function setCycle(cycleId: string | null) {
+    const current = issue!.cycle_id ?? null
+    if (cycleId === current) return
     try {
-      await deleteComment(slug, projectId, issueId, commentId)
+      if (cycleId) await addIssuesToCycle(slug, projectId, cycleId, [issue!.id])
+      else if (current) await removeIssueFromCycle(slug, projectId, current, issue!.id)
+      await refreshFeed()
     } catch (err) {
-      setComments(snapshot)
-      toast.error(errorText(err, t('Не удалось удалить комментарий')))
+      toast.error(errorText(err, t('Не удалось изменить этап')))
+    }
+  }
+
+  async function toggleModule(moduleId: string, inIt: boolean) {
+    try {
+      if (inIt) await removeIssueFromModule(slug, projectId, moduleId, issue!.id)
+      else await addIssuesToModule(slug, projectId, moduleId, [issue!.id])
+      await refreshFeed()
+    } catch (err) {
+      toast.error(errorText(err, t('Не удалось изменить модули')))
     }
   }
 
   const describeActivity = (a: Activity) =>
-    activityText(a, { member: memberName, label: labelName, state: stateName })
+    activityText(a, {
+      member: memberName,
+      label: labelName,
+      state: stateName,
+      cycle: (id) => cycles.find((c) => c.id === id)?.name ?? null,
+      module: (id) => modules.find((m) => m.id === id)?.name ?? null,
+      issue: (id) => (id ? (issueNames.get(id) ?? null) : null),
+    })
+  const liveComments = comments.filter((c) => !c.deleted_at).length
+  const currentCycle = cycles.find((c) => c.id === issue.cycle_id) ?? null
+  const issueModules = issue.modules?.map((m) => m.module_id) ?? []
+  const blockers = issue._count?.outgoing_links ?? 0
+  // A distribution's part shows its own line («Подразделение…»), not the sub-issue block.
+  const distributionPart = Boolean(issue.parent_id && issue.department_id)
 
   const dueValue = isoToDateInput(issue.due_date, timeZone)
   const pendingReviews = reviews.filter((r) => r.decision !== 'pending').length
@@ -445,6 +455,15 @@ export function IssueDetailPanel({
             {currentState?.name ?? '—'}
           </span>
           <DeadlineBadge dueDate={issue.due_date} group={group} completedAt={issue.completed_at} variant="full" />
+          {blockers > 0 && (
+            <span
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+              title={t('Её блокируют незакрытые задачи — см. «Связи»')}
+            >
+              <AlertTriangle size={12} />
+              <span className="hidden sm:inline">{t('Заблокирована')}</span>
+            </span>
+          )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             {aiEnabled && (
@@ -621,6 +640,24 @@ export function IssueDetailPanel({
               />
             )}
 
+            {!issue.is_distribution && !distributionPart && (
+              <SubtasksSection
+                key={`sub-${issue.id}`}
+                slug={slug}
+                projectId={projectId}
+                projectKey={project?.identifier ?? ''}
+                issue={issue}
+                states={states}
+                readOnly={readOnly}
+                onOpenIssue={onOpenIssue}
+                onCreated={(child) => {
+                  onUpdated(child)
+                  refreshFeed()
+                }}
+                onNames={rememberNames}
+              />
+            )}
+
             <ChecklistSection
               key={issue.id}
               slug={slug}
@@ -629,6 +666,17 @@ export function IssueDetailPanel({
               total={issue.checklist_total ?? 0}
               readOnly={readOnly}
               onChanged={refreshFeed}
+            />
+
+            <RelationsSection
+              key={`rel-${issue.id}`}
+              slug={slug}
+              projectId={projectId}
+              issueId={issue.id}
+              readOnly={readOnly}
+              onOpenIssue={onOpenIssue}
+              onChanged={refreshFeed}
+              onNames={rememberNames}
             />
 
             <AttachmentsSection
@@ -649,7 +697,7 @@ export function IssueDetailPanel({
                 <TabsList className="flex-wrap">
                   <TabsTrigger value="comments">
                     {t('Комментарии')}
-                    {comments.length > 0 ? ` ${comments.length}` : ''}
+                    {liveComments > 0 ? ` ${liveComments}` : ''}
                   </TabsTrigger>
                   <TabsTrigger value="activity">{t('История')}</TabsTrigger>
                   {reviews.length > 0 && (
@@ -665,63 +713,19 @@ export function IssueDetailPanel({
                 </TabsList>
 
                 <TabsContent value="comments" className="mt-4">
-                  {!readOnly && (
-                  <div className="mb-5 flex flex-col gap-2">
-                    <Textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addNewComment()
-                      }}
-                      rows={2}
-                      placeholder={t('Напишите комментарий… (Ctrl+Enter — отправить)')}
-                    />
-                    <div className="flex justify-end">
-                      <Button size="sm" onClick={addNewComment} disabled={!newComment.trim()}>
-                        {t('Отправить')}
-                      </Button>
-                    </div>
-                  </div>
-                  )}
-
-                  {feedLoading ? (
-                    <div className="space-y-3">
-                      <Skeleton className="h-12 w-full" />
-                      <Skeleton className="h-12 w-3/4" />
-                    </div>
-                  ) : comments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('Комментариев пока нет.')}</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {comments.map((c) => (
-                        <div key={c.id} className="group flex gap-2.5">
-                          <PersonAvatar person={c.author ? { ...c.author } : null} size={28} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">
-                                {shortName(c.author) || t('Пользователь')}
-                              </span>
-                              <span className="text-xs text-muted-foreground" title={dateTime(c.created_at)}>
-                                {timeAgo(c.created_at)}
-                              </span>
-                              {c.author_id === currentUserId && (
-                                <button
-                                  onClick={() => removeComment(c.id)}
-                                  className="ml-auto rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                                  title={t('Удалить комментарий')}
-                                >
-                                  <X size={13} />
-                                </button>
-                              )}
-                            </div>
-                            <p className="mt-0.5 whitespace-pre-wrap rounded-md bg-muted/50 px-3 py-2 text-sm text-foreground">
-                              {c.body.replace(/\*\*(.+?)\*\*/g, '$1')}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <CommentsSection
+                    slug={slug}
+                    projectId={projectId}
+                    issueId={issue.id}
+                    comments={comments}
+                    onComments={setComments}
+                    members={members}
+                    loading={feedLoading}
+                    currentUserId={currentUserId}
+                    isAdmin={myRole === 'owner' || myRole === 'admin'}
+                    readOnly={readOnly}
+                    onChanged={() => void refreshFeed({ withIssue: false })}
+                  />
                 </TabsContent>
 
                 <TabsContent value="activity" className="mt-4">
@@ -735,17 +739,26 @@ export function IssueDetailPanel({
                   ) : (
                     <div className="space-y-3">
                       {activity.map((a) => (
-                        <div key={a.id} className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                        <div key={a.id} className="flex items-start gap-2.5 text-xs text-muted-foreground">
                           <PersonAvatar person={a.actor ? { ...a.actor } : null} size={20} />
-                          <span>
+                          <span className="min-w-0 flex-1 pt-0.5">
                             <span className="font-medium text-foreground">{shortName(a.actor) || t('Кто-то')}</span>{' '}
                             {describeActivity(a)}
                           </span>
-                          <span className="ml-auto shrink-0" title={dateTime(a.created_at)}>
+                          <span className="shrink-0 pt-0.5" title={dateTime(a.created_at)}>
                             {timeAgo(a.created_at)}
                           </span>
                         </div>
                       ))}
+                      {activityCursor && (
+                        <button
+                          onClick={() => void loadOlderActivity()}
+                          disabled={olderLoading}
+                          className="w-full rounded-md border border-border py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
+                        >
+                          {olderLoading ? t('Загружаем…') : t('Показать более ранние')}
+                        </button>
+                      )}
                     </div>
                   )}
                 </TabsContent>
@@ -1075,6 +1088,96 @@ export function IssueDetailPanel({
                 )}
               </div>
             </PropRow>
+
+            {FEATURES.cycles && (cycles.length > 0 || currentCycle) && (
+              <PropRow label={t('Этап')}>
+                <PopoverPrimitive.Root>
+                  <PopoverPrimitive.Trigger asChild disabled={readOnly}>
+                    <button className={cn(triggerCls, 'disabled:cursor-default')}>
+                      <RefreshCw size={14} className="shrink-0 text-muted-foreground" />
+                      <span className={cn('flex-1 truncate text-left', !currentCycle && 'text-muted-foreground')}>
+                        {currentCycle?.name ?? t('Без этапа')}
+                      </span>
+                    </button>
+                  </PopoverPrimitive.Trigger>
+                  <PopContent>
+                    {cycles.map((c) => (
+                      <PopoverPrimitive.Close asChild key={c.id}>
+                        <button className={optionCls} onClick={() => void setCycle(c.id)}>
+                          <span className="min-w-0 flex-1 text-left">
+                            <span className="block truncate">{c.name}</span>
+                            {(c.start_date || c.end_date) && (
+                              <span className="block text-xs text-muted-foreground">
+                                {c.start_date ? shortDate(c.start_date) : '…'} — {c.end_date ? shortDate(c.end_date) : '…'}
+                              </span>
+                            )}
+                          </span>
+                          {c.id === issue.cycle_id && <Check className="size-3.5" />}
+                        </button>
+                      </PopoverPrimitive.Close>
+                    ))}
+                    {currentCycle && (
+                      <PopoverPrimitive.Close asChild>
+                        <button className={cn(optionCls, 'text-muted-foreground')} onClick={() => void setCycle(null)}>
+                          <X size={14} />
+                          <span className="flex-1 text-left">{t('Убрать из этапа')}</span>
+                        </button>
+                      </PopoverPrimitive.Close>
+                    )}
+                  </PopContent>
+                </PopoverPrimitive.Root>
+              </PropRow>
+            )}
+
+            {FEATURES.modules && (modules.length > 0 || issueModules.length > 0) && (
+              <PropRow label={t('Модули')}>
+                <div className="space-y-1">
+                  {issueModules.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {issueModules.map((id) => (
+                        <span
+                          key={id}
+                          className="flex max-w-full items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[11px] text-foreground"
+                        >
+                          <Layers size={11} className="shrink-0 text-muted-foreground" />
+                          <span className="truncate">{modules.find((m) => m.id === id)?.name ?? t('модуль')}</span>
+                          {!readOnly && (
+                            <button
+                              onClick={() => void toggleModule(id, true)}
+                              className="text-muted-foreground hover:text-destructive"
+                              aria-label={t('Убрать из модуля')}
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {!readOnly && modules.length > 0 && (
+                    <PopoverPrimitive.Root>
+                      <PopoverPrimitive.Trigger asChild>
+                        <button className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent">
+                          <Plus size={13} /> {t('В модуль')}
+                        </button>
+                      </PopoverPrimitive.Trigger>
+                      <PopContent>
+                        {modules.map((m) => {
+                          const inIt = issueModules.includes(m.id)
+                          return (
+                            <button key={m.id} className={optionCls} onClick={() => void toggleModule(m.id, inIt)}>
+                              <Layers size={14} className="shrink-0 text-muted-foreground" />
+                              <span className="flex-1 truncate text-left">{m.name}</span>
+                              {inIt && <Check className="size-3.5" />}
+                            </button>
+                          )
+                        })}
+                      </PopContent>
+                    </PopoverPrimitive.Root>
+                  )}
+                </div>
+              </PropRow>
+            )}
 
             <PropRow label={t('Срок')}>
               <PopoverPrimitive.Root>

@@ -36,3 +36,47 @@ export const getStates = (slug: string, projectId: string) =>
   client.get<unknown, State[]>(
     `/workspaces/${slug}/projects/${projectId}/states/`,
   )
+
+// ─── Managing states (4.F1, admin+, ADR-031) ─────────────────────────────────
+// Every group keeps at least one state (409 LAST_STATE_IN_GROUP) and the project
+// has exactly one default state (409 DEFAULT_STATE when unsetting or deleting it).
+
+export interface StateInput {
+  name: string
+  color: string
+  group: StateGroup
+  is_default?: boolean
+}
+
+export const createState = (slug: string, projectId: string, data: StateInput) =>
+  client.post<unknown, State>(`/workspaces/${slug}/projects/${projectId}/states/`, data)
+
+export const updateState = (
+  slug: string,
+  projectId: string,
+  stateId: string,
+  data: Partial<StateInput>,
+) =>
+  client.patch<unknown, State>(
+    `/workspaces/${slug}/projects/${projectId}/states/${stateId}`,
+    data,
+  )
+
+/** Issues of the state (in the trash too) move to `transferTo`; the move is in their history. */
+export const deleteState = (
+  slug: string,
+  projectId: string,
+  stateId: string,
+  transferTo: string,
+) =>
+  client.delete<unknown, void>(
+    `/workspaces/${slug}/projects/${projectId}/states/${stateId}`,
+    { params: { transfer_to_state_id: transferTo } },
+  )
+
+/** The board order: every state of the project once, first column first. */
+export const reorderStates = (slug: string, projectId: string, stateIds: string[]) =>
+  client.put<unknown, State[]>(
+    `/workspaces/${slug}/projects/${projectId}/states/order`,
+    { state_ids: stateIds },
+  )

@@ -55,6 +55,7 @@ import { errorText } from '@/lib/errorMessages'
 import { cn } from '@/lib/utils'
 import { t as translate } from '@/i18n'
 import { AddMemberDialog } from './AddMemberDialog'
+import { ImportMembersDialog } from './ImportMembersDialog'
 
 const ALL = '__all__'
 const NONE = '__none__'
@@ -111,9 +112,15 @@ export function MembersPage() {
   const [deactivating, setDeactivating] = useState<WorkspaceMember | null>(null)
   const [resetting, setResetting] = useState<{ member: WorkspaceMember; provider: ResettableProvider } | null>(null)
 
+  // After an add or an import: an import may also have created departments.
   async function load() {
     if (!workspace) return
-    setMembers(await getWorkspaceMembers(workspace.slug, { includeDeactivated: true }).catch(() => []))
+    const [list, deps] = await Promise.all([
+      getWorkspaceMembers(workspace.slug, { includeDeactivated: true }).catch(() => null),
+      getDepartments(workspace.slug).catch(() => null),
+    ])
+    if (list) setMembers(list)
+    if (deps) setDepartments(deps)
   }
 
   useEffect(() => {
@@ -274,7 +281,12 @@ export function MembersPage() {
               {members.length}
             </span>
           </h1>
-          {canManage && <AddMemberDialog onAdded={load} />}
+          {canManage && (
+            <div className="flex flex-wrap items-center gap-2">
+              <ImportMembersDialog onImported={load} />
+              <AddMemberDialog onAdded={load} />
+            </div>
+          )}
         </div>
 
         {/* Filters */}

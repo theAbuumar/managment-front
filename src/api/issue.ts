@@ -116,8 +116,21 @@ export interface Issue {
   distribution?: DistributionProgress
   controller?: UserBrief | null
   state?: { id: string; name: string; group: StateGroup; color: string }
-  /** watchers; deadline_requests = approved deadline moves ("переносы"). */
-  _count?: { watchers: number; deadline_requests: number }
+  /** Cycle (этап) the issue is in (4.F3). */
+  cycle_id?: string | null
+  /** Modules it is in (4.F4). */
+  modules?: { module_id: string }[]
+  /**
+   * watchers; deadline_requests = approved deadline moves ("переносы"); children —
+   * sub-issues not in the trash (4.F7); outgoing_links — open issues that block this
+   * one: «заблокирована» when > 0 (4.F6).
+   */
+  _count?: {
+    watchers: number
+    deadline_requests: number
+    children?: number
+    outgoing_links?: number
+  }
   sort_order: number
   created_at: string
   updated_at: string
@@ -201,6 +214,8 @@ export interface CreateIssueBody {
   ai_assisted?: boolean
   /** Checklist items in order (6.B5), e.g. from a template. */
   checklist?: string[]
+  /** Makes it a sub-issue (4.F7): one level, same project, not under a distribution. */
+  parent_id?: string | null
 }
 
 export const createIssue = (

@@ -125,9 +125,12 @@
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────── */
-* {
-  box-sizing: border-box;
-  border-color: var(--border);
+/* In the base layer, so `border-primary`, `border-transparent`… utilities win. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
 }
 
 body {
