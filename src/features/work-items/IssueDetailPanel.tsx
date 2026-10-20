@@ -36,6 +36,7 @@ import { shortName, fullName } from '@/lib/people'
 import { timeAgo, dateTime, longDate, dateInputToIso, isoToDateInput } from '@/lib/dates'
 import { errorText } from '@/lib/errorMessages'
 import { issueLink } from '@/lib/links'
+import { activityText } from '@/lib/activityText'
 import { useAuthStore } from '@/stores/authStore'
 import { useDraft } from '@/lib/drafts'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
@@ -375,79 +376,8 @@ export function IssueDetailPanel({
     }
   }
 
-  function describeActivity(a: Activity): string {
-    switch (a.action) {
-      case 'issue.created':
-        return t('создал(а) задачу')
-      case 'issue.deleted':
-        return t('удалил(а) задачу')
-      case 'issue.restored':
-        return t('восстановил(а) задачу из корзины')
-      case 'issue.assignee_added':
-        return t('назначил(а) исполнителя: {{name}}', { name: memberName(a.new_value) })
-      case 'issue.assignee_removed':
-        return t('снял(а) исполнителя: {{name}}', { name: memberName(a.old_value) })
-      case 'issue.label_added':
-        return t('добавил(а) метку «{{name}}»', { name: labelName(a.new_value) })
-      case 'issue.label_removed':
-        return t('убрал(а) метку «{{name}}»', { name: labelName(a.old_value) })
-      case 'comment.created':
-        return t('оставил(а) комментарий')
-      case 'comment.updated':
-        return t('изменил(а) комментарий')
-      case 'comment.deleted':
-        return t('удалил(а) комментарий')
-      case 'issue.attachment_added':
-        return t('приложил(а) файл')
-      case 'issue.attachment_removed':
-        return t('удалил(а) файл')
-      case 'issue.review_submitted':
-        return t('отправил(а) на проверку')
-      case 'issue.review_approved':
-        return t('принял(а) результат')
-      case 'issue.review_returned':
-        return t('вернул(а) на доработку')
-      case 'issue.acknowledged':
-        return t('ознакомился(ась) с поручением')
-      case 'issue.deadline_requested':
-        return t('запросил(а) перенос срока на {{date}}', {
-          date: a.new_value ? longDate(a.new_value) : '—',
-        })
-      case 'issue.deadline_approved':
-        return t('одобрил(а) перенос срока')
-      case 'issue.deadline_rejected':
-        return t('отклонил(а) перенос срока')
-      case 'issue.updated':
-        switch (a.field) {
-          case 'state_id':
-            return t('перевёл(а) в «{{state}}»', { state: stateName(a.new_value) })
-          case 'priority':
-            return t('изменил(а) приоритет')
-          case 'title':
-            return t('переименовал(а) задачу')
-          case 'description':
-            return t('изменил(а) описание')
-          case 'due_date':
-            return a.new_value
-              ? t('установил(а) срок: {{date}}', { date: longDate(a.new_value) })
-              : t('убрал(а) срок')
-          case 'start_date':
-            return t('изменил(а) дату начала')
-          case 'kind':
-            return a.new_value === 'assignment' ? t('сделал(а) поручением') : t('сделал(а) обычной задачей')
-          case 'controller_id':
-            return t('назначил(а) контролёра: {{name}}', { name: memberName(a.new_value) })
-          case 'requires_review':
-            return a.new_value === 'true' ? t('включил(а) проверку результата') : t('отключил(а) проверку результата')
-          case 'basis':
-            return t('изменил(а) основание')
-          default:
-            return t('изменил(а) задачу')
-        }
-      default:
-        return a.action
-    }
-  }
+  const describeActivity = (a: Activity) =>
+    activityText(a, { member: memberName, label: labelName, state: stateName })
 
   const dueValue = isoToDateInput(issue.due_date, timeZone)
   const pendingReviews = reviews.filter((r) => r.decision !== 'pending').length

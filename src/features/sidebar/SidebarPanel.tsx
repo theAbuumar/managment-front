@@ -18,6 +18,7 @@ import {
   Mail,
   ShieldCheck,
   Hourglass,
+  Activity,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { getProjects, type Project } from '@/api/project'
@@ -32,6 +33,8 @@ interface NavItem {
   feature?: FeatureFlag
   /** Hidden from guests: they only read, so the section is always empty for them. */
   noGuest?: boolean
+  /** Only for admins and department heads (the workspace feed, 7.F9). */
+  managers?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -44,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
 const WORKSPACE_ITEMS: NavItem[] = [
   { label: 'Проекты', icon: FolderOpen, to: '/projects-list' },
   { label: 'Приглашения', icon: Mail, to: '/invitations' },
+  { label: 'Лента событий', icon: Activity, to: '/activity', feature: 'activity', managers: true },
   { label: 'Корзина', icon: Trash2, to: '/trash', feature: 'trash', noGuest: true },
 ]
 
@@ -104,6 +108,8 @@ export function SidebarPanel({ className }: { className?: string }) {
 
   const summary = useMySummary()
   const readOnly = useReadOnly()
+  const manager =
+    summary?.role === 'owner' || summary?.role === 'admin' || !!summary?.heads_department
   const workTab = location.pathname === '/your-work' ? new URLSearchParams(location.search).get('tab') : null
 
   function isActive(to: string) {
@@ -218,6 +224,7 @@ export function SidebarPanel({ className }: { className?: string }) {
             <div className="mt-0.5 space-y-0.5">
               {enabled(WORKSPACE_ITEMS)
                 .filter((item) => !(readOnly && item.noGuest))
+                .filter((item) => !item.managers || manager)
                 .map((item) => (
                 <button
                   key={item.to}

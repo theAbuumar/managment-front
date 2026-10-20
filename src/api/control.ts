@@ -151,6 +151,8 @@ export interface MySummary {
   review_pending: number
   watching: number
   unread_notifications: number
+  /** I head a department: the workspace feed (7.F9) is open to me. */
+  heads_department?: boolean
 }
 
 export const getMySummary = (slug: string) =>

@@ -4,6 +4,8 @@
 export const FEATURES = {
   drafts: false,
   trash: true,
+  // Workspace feed (7.F9): admins and department heads.
+  activity: true,
   views: false,
   cycles: false,
   modules: false,

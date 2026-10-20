@@ -10,6 +10,7 @@ import {
   CircleDot,
   FolderOpen,
   History,
+  Activity,
   Info,
   Loader2,
   Moon,
@@ -29,7 +30,7 @@ import { searchWorkspace, type SearchResult } from '@/api/search'
 import { getProjects, type Project } from '@/api/project'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { useMyRole } from '@/stores/summaryStore'
+import { useMyRole, useMySummary } from '@/stores/summaryStore'
 import { useAiEnabled } from '@/stores/aiStore'
 import { useTheme } from '@/contexts/ThemeContext'
 import { FEATURES } from '@/lib/features'
@@ -97,6 +98,7 @@ export function CommandPalette() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
   const role = useMyRole()
+  const headsDepartment = !!useMySummary()?.heads_department
   const aiEnabled = useAiEnabled()
   const { theme, toggle } = useTheme()
   const slug = workspace?.slug
@@ -444,6 +446,14 @@ export function CommandPalette() {
         run: () => go('/settings/general'),
       },
       {
+        id: 'activity',
+        text: t('Лента событий активность кто что сделал'),
+        show: FEATURES.activity && (admin || headsDepartment),
+        icon: iconOf(Activity),
+        label: t('Лента событий'),
+        run: () => go('/activity'),
+      },
+      {
         id: 'audit',
         text: t('Журнал аудита'),
         show: admin,
@@ -494,6 +504,7 @@ export function CommandPalette() {
     workspace?.id,
     guest,
     admin,
+    headsDepartment,
     aiEnabled,
     theme,
     t,
