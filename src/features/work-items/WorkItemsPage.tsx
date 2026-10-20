@@ -13,8 +13,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { useReadOnly } from '@/stores/summaryStore'
 import { ApiError } from '@/api/client'
 import { errorText } from '@/lib/errorMessages'
-import { deadlineInfo } from '@/lib/deadline'
-import { t as translate } from '@/i18n'
 import { isOwnEcho, useRealtime } from '@/lib/realtime'
 import { shortName } from '@/lib/people'
 import { getProject, type Project } from '@/api/project'
@@ -31,6 +29,7 @@ import {
   type IssuePriorityValue,
 } from '@/api/issue'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
+import { getLabels, type Label } from '@/api/label'
 import { getProjectRelations, type ProjectRelation } from '@/api/relation'
 import { dateInputToIso, longDate } from '@/lib/dates'
 import { BoardView } from './BoardView'
@@ -41,6 +40,17 @@ import { CreateIssueDialog } from './CreateIssueDialog'
 import { DistributeDialog } from './DistributeDialog'
 import { IssueDetailPanel } from './IssueDetailPanel'
 import { SubmitReviewDialog } from './control/ControlDialogs'
+import { FilterPanel } from '@/features/views/FilterPanel'
+import { ViewsMenu } from '@/features/views/ViewsMenu'
+import {
+  BOARD_KEYS,
+  QUICK_FILTERS,
+  boardFilterValues,
+  describeFilters,
+  matchesBoard,
+  readBoardFilters,
+  type BoardFilters,
+} from '@/features/views/filters'
 
 const errMsg = (err: unknown, fallback: string) => errorText(err, fallback)
 
@@ -59,16 +69,6 @@ function rememberedView(): ViewMode {
   }
 }
 
-// Quick filters for the board (Ф5): who's responsible, what needs attention.
-type QuickFilter = 'all' | 'mine' | 'control' | 'overdue' | 'review' | 'unack'
-const QUICK_FILTERS: { key: QuickFilter; label: () => string }[] = [
-  { key: 'all', label: () => translate('Все') },
-  { key: 'mine', label: () => translate('Мои') },
-  { key: 'control', label: () => translate('На контроле') },
-  { key: 'overdue', label: () => translate('Просрочено') },
-  { key: 'review', label: () => translate('На проверке') },
-  { key: 'unack', label: () => translate('Не ознакомлены') },
-]
 
 export function WorkItemsPage() {
   const { t } = useTranslation()
@@ -79,7 +79,6 @@ export function WorkItemsPage() {
   // A guest only reads (12.B4): no create, distribute or drag-and-drop.
   const readOnly = useReadOnly()
   const timeZone = workspace?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const [quick, setQuick] = useState<QuickFilter>('all')
   // Hand-in dialog opened from a drag to "На проверке" / "Готово".
   const [reviewFor, setReviewFor] = useState<{ issue: Issue; note?: string } | null>(null)
 
@@ -87,6 +86,7 @@ export function WorkItemsPage() {
   const [states, setStates] = useState<State[]>([])
   const [issues, setIssues] = useState<Issue[]>([])
   const [members, setMembers] = useState<WorkspaceMember[]>([])
+  const [labels, setLabels] = useState<Label[]>([])
   // «блокирует» arrows of the timeline, loaded when it is first shown.
   const [relations, setRelations] = useState<ProjectRelation[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,6 +99,20 @@ export function WorkItemsPage() {
   const selectedId = searchParams.get('issue')
   const urlView = searchParams.get('view') as ViewMode | null
   const view: ViewMode = urlView && VIEW_MODES.includes(urlView) ? urlView : rememberedView()
+  // Quick filters (Ф5) and the filter panel (7.F5) live in the URL too: a link or
+  // a saved view opens the same picture.
+  const filters = useMemo(() => readBoardFilters(searchParams), [searchParams])
+  // Read from the address itself, not from the last render: two quick clicks
+  // must not undo each other while the first navigation is still rendering.
+  function updateFilters(update: (current: BoardFilters) => Partial<BoardFilters>) {
+    const params = new URLSearchParams(window.location.search)
+    const current = readBoardFilters(params)
+    const next = { ...current, ...update(current) }
+    for (const key of BOARD_KEYS) params.delete(key)
+    for (const [key, value] of Object.entries(boardFilterValues(next))) params.set(key, value)
+    setSearchParams(params, { replace: true })
+  }
+
   function setView(mode: ViewMode) {
     try {
       localStorage.setItem(VIEW_KEY, mode)
@@ -221,17 +235,19 @@ export function WorkItemsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [p, st, all, mem] = await Promise.all([
+        const [p, st, all, mem, lab] = await Promise.all([
           getProject(slug, projectId),
           getStates(slug, projectId),
           getAllIssues(slug, projectId, { sort_by: 'sort_order', order: 'asc' }),
           getWorkspaceMembers(slug).catch(() => []),
+          getLabels(slug, projectId).catch(() => []),
         ])
         if (cancelled) return
         setProject(p)
         setStates(st)
         setIssues(all)
         setMembers(mem)
+        setLabels(lab)
       } catch (err) {
         if (!cancelled) setError(errMsg(err, t('Не удалось загрузить задачи')))
       } finally {
@@ -313,27 +329,25 @@ export function WorkItemsPage() {
     }
   }
 
+  const filtered =
+    filters.quick !== 'all' || Object.keys(boardFilterValues(filters)).length > 0
   const visibleIssues = useMemo(() => {
-    if (quick === 'all') return issues
-    return issues.filter((i) => {
-      const group = i.state?.group ?? states.find((s) => s.id === i.state_id)?.group
-      const open = group !== 'completed' && group !== 'cancelled'
-      switch (quick) {
-        case 'mine':
-          return i.assignees.some((a) => a.user_id === me)
-        case 'control':
-          return open && (i.controller_id ?? (i.kind === 'assignment' ? i.created_by_id : null)) === me
-        case 'overdue':
-          return open && deadlineInfo(i.due_date, group, timeZone).tone === 'overdue'
-        case 'review':
-          return group === 'review'
-        case 'unack':
-          return open && i.kind === 'assignment' && i.assignees.some((a) => !a.acknowledged_at)
-        default:
-          return true
-      }
-    })
-  }, [issues, quick, me, states, timeZone])
+    if (!filtered) return issues
+    return issues.filter((i) =>
+      matchesBoard(i, filters, {
+        me,
+        group: i.state?.group ?? states.find((s) => s.id === i.state_id)?.group,
+        timeZone,
+      }),
+    )
+  }, [issues, filtered, filters, me, states, timeZone])
+
+  // What a saved view of this page would hold (7.F5).
+  const viewFilters = boardFilterValues(filters)
+  const filterChips = describeFilters(viewFilters, {
+    person: (id) => shortName(members.find((m) => m.user_id === id)?.user),
+    label: (id) => labels.find((l) => l.id === id)?.name,
+  })
 
   /** A task's deadline is the assignee's to plan; an assignment's — its controller's (5.B5). */
   function canMoveDeadline(issue: Issue) {
@@ -419,7 +433,7 @@ export function WorkItemsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* View bar */}
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-4 py-1.5">
         <div
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-sm"
           style={{ backgroundColor: project?.color ? `${project.color}26` : undefined }}
@@ -468,6 +482,20 @@ export function WorkItemsPage() {
             ))}
           </div>
 
+          {/* Filters and saved views (7.F5) */}
+          {!loading && !error && (
+            <FilterPanel filters={filters} onChange={updateFilters} members={members} labels={labels} />
+          )}
+          {slug && projectId && (
+            <ViewsMenu
+              slug={slug}
+              projectId={projectId}
+              filters={viewFilters}
+              mode={view}
+              chips={filterChips}
+            />
+          )}
+
           {/* One assignment for several departments (6.F1) */}
           {!readOnly && (
           <Button
@@ -503,10 +531,10 @@ export function WorkItemsPage() {
             <button
               key={f.key}
               type="button"
-              onClick={() => setQuick(f.key)}
+              onClick={() => updateFilters(() => ({ quick: f.key }))}
               className={cn(
                 'whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
-                quick === f.key
+                filters.quick === f.key
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-muted',
               )}
@@ -514,7 +542,7 @@ export function WorkItemsPage() {
               {f.label()}
             </button>
           ))}
-          {quick !== 'all' && (
+          {filtered && (
             <span className="ml-2 text-xs text-muted-foreground">
               {t('Показано: {{n}} из {{total}}', { n: visibleIssues.length, total: issues.length })}
             </span>

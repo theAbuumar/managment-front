@@ -99,6 +99,7 @@ const AiDraftsPage = lazyPage(
   'AiDraftsPage',
 )
 const TrashPage = lazyPage(() => import('@/features/trash/TrashPage'), 'TrashPage')
+const ViewsPage = lazyPage(() => import('@/features/views/ViewsPage'), 'ViewsPage')
 const ActivityFeedPage = lazyPage(
   () => import('@/features/activity/ActivityFeedPage'),
   'ActivityFeedPage',
@@ -183,6 +184,13 @@ export const router = createBrowserRouter([
           ...(FEATURES.trash ? [{ path: 'trash', element: <TrashPage /> }] : []),
           ...(FEATURES.activity
             ? [{ path: 'activity', element: <ActivityFeedPage /> }]
+            : []),
+          // Saved views (7.F5): all of them, or one project's.
+          ...(FEATURES.views
+            ? [
+                { path: 'views', element: <ViewsPage /> },
+                { path: 'projects/:id/views', element: <ViewsPage /> },
+              ]
             : []),
           // AI assistant (Ф11): the pages go home themselves while AI is off.
           ...(FEATURES.ai

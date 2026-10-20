@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
 const WORKSPACE_ITEMS: NavItem[] = [
   { label: 'Проекты', icon: FolderOpen, to: '/projects-list' },
   { label: 'Приглашения', icon: Mail, to: '/invitations' },
+  { label: 'Виды', icon: PanelsTopLeft, to: '/views', feature: 'views' },
   { label: 'Лента событий', icon: Activity, to: '/activity', feature: 'activity', managers: true },
   { label: 'Корзина', icon: Trash2, to: '/trash', feature: 'trash', noGuest: true },
 ]

@@ -15,6 +15,9 @@ import { errorText } from '@/lib/errorMessages'
 import { pluralize } from '@/lib/plural'
 import { IssueRow } from '@/features/issues/IssueRow'
 import { WorkspaceIssuePanel } from '@/features/issues/WorkspaceIssuePanel'
+import { ViewsMenu } from '@/features/views/ViewsMenu'
+import { LIST_KEYS, describeFilters, pickFilters } from '@/features/views/filters'
+import { shortName } from '@/lib/people'
 import { nextDay, startOfLocalDayIso } from './format'
 
 // The list behind a chart (Ф10 10.F2): every bar, tile and count on the
@@ -75,6 +78,20 @@ export function IssuesDrilldownPage() {
   const title = params.get('title') || t('Задачи')
   const selected = issues?.find((i) => i.id === selectedId) ?? null
 
+  // A saved view of this list keeps its filters, not the title (7.F5).
+  const viewFilters = pickFilters(params, LIST_KEYS)
+  const chips = describeFilters(viewFilters, {
+    project: (id) => issues?.find((i) => i.project_id === id)?.project?.name,
+    department: (id) => {
+      const d = issues?.find((i) => i.department_id === id)?.department
+      return d ? d.short_name || d.name : undefined
+    },
+    person: (id) => {
+      const a = issues?.flatMap((i) => i.assignees).find((x) => x.user_id === id)
+      return a?.user ? shortName(a.user) : undefined
+    },
+  })
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
@@ -91,6 +108,17 @@ export function IssuesDrilldownPage() {
           <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
             {pluralize(issues.length, TASKS)}
           </span>
+        )}
+        {slug && (
+          <div className="ml-auto">
+            <ViewsMenu
+              slug={slug}
+              projectId={null}
+              filters={viewFilters}
+              chips={chips}
+              defaultName={params.get('title') ?? ''}
+            />
+          </div>
         )}
       </div>
       <div className="flex-1 overflow-y-auto">

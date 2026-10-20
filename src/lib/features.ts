@@ -6,7 +6,7 @@ export const FEATURES = {
   trash: true,
   // Workspace feed (7.F9): admins and department heads.
   activity: true,
-  views: false,
+  views: true,
   cycles: false,
   modules: false,
   analytics: true,
