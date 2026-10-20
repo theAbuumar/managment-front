@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { matchPath, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
@@ -120,7 +120,9 @@ export function CommandPalette() {
   const guest = role === 'guest'
 
   // Hotkeys: Ctrl/⌘+K toggles (by key position, so it works in the Russian
-  // layout too), «/» opens unless the user is typing or another dialog is open.
+  // layout too); «/» opens and «C» creates (7.F8) unless the user is typing or
+  // another dialog is open. «C» on a project's board opens its create dialog
+  // (?create=1), anywhere else — «Новое поручение…» with a choice of project.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.code === 'KeyK') {
@@ -128,22 +130,37 @@ export function CommandPalette() {
         setOpen(!usePaletteStore.getState().open)
         return
       }
-      if (
-        (e.key === '/' || e.code === 'Slash') &&
+      const free =
         !e.ctrlKey &&
         !e.metaKey &&
         !e.altKey &&
+        !e.repeat &&
         !typing(e.target) &&
         !usePaletteStore.getState().open &&
         !document.querySelector('[role="dialog"]')
-      ) {
+      if (!free) return
+      if (e.key === '/' || e.code === 'Slash') {
         e.preventDefault()
+        setOpen(true)
+        return
+      }
+      if (e.code === 'KeyC' && !e.shiftKey && !guest && slug) {
+        e.preventDefault()
+        if (matchPath('/projects/:id/work-items', window.location.pathname)) {
+          const params = new URLSearchParams(window.location.search)
+          params.set('create', '1')
+          navigate({ search: params.toString() }, { replace: true })
+          return
+        }
+        setMode('create')
+        setQuery('')
+        setActive(0)
         setOpen(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setOpen])
+  }, [setOpen, navigate, guest, slug])
 
   function reset() {
     setMode('root')
