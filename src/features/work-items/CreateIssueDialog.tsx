@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { CalendarRange, Check, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react'
+import { CalendarRange, Check, CloudCheck, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAiEnabled } from '@/stores/aiStore'
 import { toast } from 'sonner'
@@ -20,12 +20,13 @@ import { PersonAvatar } from '@/components/ui/person-avatar'
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { cn } from '@/lib/utils'
 import { shortName, fullName } from '@/lib/people'
-import { dateInputToIso } from '@/lib/dates'
+import { dateInputToIso, isoToDateInput } from '@/lib/dates'
 import { errorText } from '@/lib/errorMessages'
 import { useAuthStore } from '@/stores/authStore'
 import { createIssue, type Issue, type IssueKind, type IssuePriorityValue } from '@/api/issue'
 import type { State } from '@/api/state'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
+import { createDraft, deleteDraft, getDraft, updateDraft, type DraftData } from '@/api/drafts'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
 
@@ -290,6 +291,7 @@ export function CreateIssueDialog({
   projectId,
   states,
   onCreated,
+  draftId,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -297,6 +299,8 @@ export function CreateIssueDialog({
   projectId: string
   states: State[]
   onCreated: (issue: Issue) => void
+  /** Continue this draft (7.F6, «Черновики» → «Продолжить»). */
+  draftId?: string | null
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -315,6 +319,11 @@ export function CreateIssueDialog({
   const [due, setDue] = useState('')
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [busy, setBusy] = useState(false)
+  // Drafts (7.F6): the form saves itself while typed; saves run one at a time,
+  // in order — the first creates the draft, the next ones update it.
+  const draftRef = useRef<string | null>(null)
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const [draftState, setDraftState] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   // Default the state to "К выполнению" (or the project default / first column),
   // the controller to the author, and load members for the pickers.
@@ -338,6 +347,110 @@ export function CreateIssueDialog({
   const effectivePrimary =
     primaryId && assigneeIds.includes(primaryId) ? primaryId : assigneeIds[0]
 
+  // Continue a draft: its fields over the defaults.
+  useEffect(() => {
+    if (!open || !draftId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const draft = await getDraft(slug, draftId)
+        if (cancelled) return
+        draftRef.current = draft.id
+        const d = draft.data
+        if (d.kind) setKind(d.kind)
+        setTitle(d.title ?? '')
+        setDescription(d.description ?? '')
+        setBasis(d.basis ?? '')
+        if (d.state_id) setStateId(d.state_id)
+        if (d.priority) setPriority(d.priority)
+        setAssigneeIds(d.assignee_ids ?? [])
+        setPrimaryId(d.primary_assignee_id)
+        if (d.controller_id) setControllerId(d.controller_id)
+        if (d.requires_review !== undefined) setRequiresReview(d.requires_review)
+        setDue(isoToDateInput(d.due_date))
+        setDraftState('saved')
+      } catch {
+        if (!cancelled) toast.error(t('Черновик не найден — возможно, он уже опубликован'))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, draftId, slug, t])
+
+  const hasContent = Boolean(title.trim() || description.trim() || basis.trim())
+  const draftData: DraftData = {
+    kind,
+    title,
+    description,
+    basis: basis || null,
+    state_id: stateId || undefined,
+    priority,
+    assignee_ids: assigneeIds,
+    primary_assignee_id: effectivePrimary,
+    controller_id: kind === 'assignment' ? controllerId || null : null,
+    requires_review: requiresReview,
+    due_date: dateInputToIso(due),
+  }
+  const serialized = JSON.stringify(draftData)
+
+  /** Resolves to whether the draft was saved. */
+  function saveDraft(data: DraftData): Promise<boolean> {
+    const run = queue.current.then(async () => {
+      setDraftState('saving')
+      try {
+        if (draftRef.current) await updateDraft(slug, draftRef.current, { data })
+        else draftRef.current = (await createDraft(slug, { project_id: projectId, data })).id
+        setDraftState('saved')
+        return true
+      } catch {
+        // The form keeps the text; the next change tries again.
+        setDraftState('idle')
+        return false
+      }
+    })
+    queue.current = run
+    return run
+  }
+
+  // Save a moment after typing stops.
+  useEffect(() => {
+    if (!open || !hasContent || busy) return
+    const timer = setTimeout(() => void saveDraft(JSON.parse(serialized) as DraftData), 1200)
+    return () => clearTimeout(timer)
+    // saveDraft reads refs only; `serialized` carries every field.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hasContent, serialized, busy])
+
+  /** Forget the current draft once the queued saves are done (and delete it, if asked). */
+  function dropDraft(remove: boolean) {
+    queue.current = queue.current.then(async () => {
+      const id = draftRef.current
+      draftRef.current = null
+      if (remove && id) await deleteDraft(slug, id).catch(() => undefined)
+    })
+  }
+
+  // Closing without creating keeps what was typed as a draft; an emptied form
+  // leaves nothing behind.
+  function close() {
+    if (hasContent) {
+      void saveDraft(draftData).then(
+        (saved) =>
+          saved &&
+          toast.success(t('Черновик сохранён'), {
+            description: t('Продолжить можно в разделе «Черновики».'),
+            action: { label: t('Черновики'), onClick: () => navigate('/drafts') },
+          }),
+      )
+      dropDraft(false)
+    } else {
+      dropDraft(true)
+    }
+    reset()
+    onOpenChange(false)
+  }
+
   function reset() {
     setKind('assignment')
     setTitle('')
@@ -350,6 +463,7 @@ export function CreateIssueDialog({
     setControllerId('')
     setRequiresReview(true)
     setDue('')
+    setDraftState('idle')
   }
 
   const isAssignment = kind === 'assignment'
@@ -375,6 +489,8 @@ export function CreateIssueDialog({
       })
       toast.success(isAssignment ? t('Поручение создано') : t('Задача создана'))
       onCreated(issue)
+      // Created: the draft has done its job.
+      dropDraft(true)
       reset()
       onOpenChange(false)
     } catch (err) {
@@ -388,8 +504,8 @@ export function CreateIssueDialog({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) reset()
-        onOpenChange(v)
+        if (!v) close()
+        else onOpenChange(v)
       }}
     >
       <DialogContent className="max-w-xl">
@@ -490,7 +606,16 @@ export function CreateIssueDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {draftState !== 'idle' && (
+            <span
+              className="flex items-center gap-1.5 self-center text-xs text-muted-foreground sm:mr-auto"
+              role="status"
+            >
+              {draftState === 'saved' && <CloudCheck size={14} />}
+              {draftState === 'saving' ? t('Сохраняем черновик…') : t('Черновик сохранён')}
+            </span>
+          )}
+          <Button variant="outline" onClick={close}>
             {t('Отмена')}
           </Button>
           <Button onClick={submit} disabled={busy || !title.trim() || !stateId}>

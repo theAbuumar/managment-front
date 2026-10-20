@@ -40,7 +40,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Главная', icon: Home, to: '/' },
   { label: 'Мои задачи', icon: User, to: '/your-work' },
-  { label: 'Черновики', icon: PencilLine, to: '/drafts', feature: 'drafts' },
+  { label: 'Черновики', icon: PencilLine, to: '/drafts', feature: 'drafts', noGuest: true },
   { label: 'Аналитика', icon: BarChart3, to: '/analytics', feature: 'analytics' },
 ]
 
@@ -172,7 +172,9 @@ export function SidebarPanel({ className }: { className?: string }) {
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {/* Primary nav */}
         <nav className="mb-3 space-y-0.5">
-          {enabled(NAV_ITEMS).map((item) => (
+          {enabled(NAV_ITEMS)
+            .filter((item) => !(readOnly && item.noGuest))
+            .map((item) => (
             <div key={item.to} className="space-y-0.5">
               <button
                 onClick={() => navigate(item.to)}

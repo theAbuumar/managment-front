@@ -99,6 +99,7 @@ const AiDraftsPage = lazyPage(
   'AiDraftsPage',
 )
 const TrashPage = lazyPage(() => import('@/features/trash/TrashPage'), 'TrashPage')
+const DraftsPage = lazyPage(() => import('@/features/drafts/DraftsPage'), 'DraftsPage')
 const ViewsPage = lazyPage(() => import('@/features/views/ViewsPage'), 'ViewsPage')
 const ActivityFeedPage = lazyPage(
   () => import('@/features/activity/ActivityFeedPage'),
@@ -185,6 +186,7 @@ export const router = createBrowserRouter([
           ...(FEATURES.activity
             ? [{ path: 'activity', element: <ActivityFeedPage /> }]
             : []),
+          ...(FEATURES.drafts ? [{ path: 'drafts', element: <DraftsPage /> }] : []),
           // Saved views (7.F5): all of them, or one project's.
           ...(FEATURES.views
             ? [

@@ -2,7 +2,7 @@
 // navigation list and has no route — the UI never shows "coming soon". Flip a flag
 // to true in the same change that ships the page.
 export const FEATURES = {
-  drafts: false,
+  drafts: true,
   trash: true,
   // Workspace feed (7.F9): admins and department heads.
   activity: true,

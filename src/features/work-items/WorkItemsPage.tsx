@@ -146,11 +146,12 @@ export function WorkItemsPage() {
     createOpen || (wantsCreate && !loading && states.length > 0)
   function setCreateDialogOpen(open: boolean) {
     setCreateOpen(open)
-    if (!open && searchParams.has('create')) {
+    if (!open && (searchParams.has('create') || searchParams.has('draft'))) {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev)
           next.delete('create')
+          next.delete('draft')
           return next
         },
         { replace: true },
@@ -627,6 +628,7 @@ export function WorkItemsPage() {
           slug={slug}
           projectId={projectId}
           states={states}
+          draftId={wantsCreate ? searchParams.get('draft') : null}
           onCreated={(issue) => setIssues((prev) => [...prev, issue])}
         />
       )}
