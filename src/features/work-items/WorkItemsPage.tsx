@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { LayoutGrid, List, AlertCircle, Plus, Send } from 'lucide-react'
+import { LayoutGrid, List, AlertCircle, Plus, Send, CalendarDays, GanttChart } from 'lucide-react'
 import { toast } from 'sonner'
 import { toastIssueTrashed } from '@/features/trash/trashToast'
 import { cn } from '@/lib/utils'
@@ -31,8 +31,12 @@ import {
   type IssuePriorityValue,
 } from '@/api/issue'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
+import { getProjectRelations, type ProjectRelation } from '@/api/relation'
+import { dateInputToIso, longDate } from '@/lib/dates'
 import { BoardView } from './BoardView'
 import { ListView } from './ListView'
+import { CalendarView } from './views/CalendarView'
+import { TimelineView } from './views/TimelineView'
 import { CreateIssueDialog } from './CreateIssueDialog'
 import { DistributeDialog } from './DistributeDialog'
 import { IssueDetailPanel } from './IssueDetailPanel'
@@ -40,7 +44,20 @@ import { SubmitReviewDialog } from './control/ControlDialogs'
 
 const errMsg = (err: unknown, fallback: string) => errorText(err, fallback)
 
-type ViewMode = 'board' | 'list'
+// How the project's work is shown (7.F4). Kept in the URL (?view=calendar), so a
+// link — or a saved view later — opens the same picture; the last one is remembered.
+type ViewMode = 'board' | 'list' | 'calendar' | 'timeline'
+const VIEW_MODES: ViewMode[] = ['board', 'list', 'calendar', 'timeline']
+const VIEW_KEY = 'work-items:view'
+
+function rememberedView(): ViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_KEY) as ViewMode | null
+    return v && VIEW_MODES.includes(v) ? v : 'board'
+  } catch {
+    return 'board'
+  }
+}
 
 // Quick filters for the board (Ф5): who's responsible, what needs attention.
 type QuickFilter = 'all' | 'mine' | 'control' | 'overdue' | 'review' | 'unack'
@@ -70,15 +87,33 @@ export function WorkItemsPage() {
   const [states, setStates] = useState<State[]>([])
   const [issues, setIssues] = useState<Issue[]>([])
   const [members, setMembers] = useState<WorkspaceMember[]>([])
+  // «блокирует» arrows of the timeline, loaded when it is first shown.
+  const [relations, setRelations] = useState<ProjectRelation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<ViewMode>('board')
   const [createOpen, setCreateOpen] = useState(false)
   const [distributeOpen, setDistributeOpen] = useState(false)
   // The open issue lives in the URL (?issue=<id>) so notifications, the home page
   // and deep links can open a specific work item.
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('issue')
+  const urlView = searchParams.get('view') as ViewMode | null
+  const view: ViewMode = urlView && VIEW_MODES.includes(urlView) ? urlView : rememberedView()
+  function setView(mode: ViewMode) {
+    try {
+      localStorage.setItem(VIEW_KEY, mode)
+    } catch {
+      // Storage unavailable — the URL still carries the view.
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('view', mode)
+        return next
+      },
+      { replace: true },
+    )
+  }
   const setSelectedId = (id: string | null) =>
     setSearchParams(
       (prev) => {
@@ -208,6 +243,17 @@ export function WorkItemsPage() {
     }
   }, [slug, projectId, t, reloadTick])
 
+  useEffect(() => {
+    if (!slug || !projectId || view !== 'timeline') return
+    let cancelled = false
+    getProjectRelations(slug, projectId, 'blocks')
+      .then((res) => !cancelled && setRelations(res.data))
+      .catch(() => !cancelled && setRelations([]))
+    return () => {
+      cancelled = true
+    }
+  }, [slug, projectId, view, reloadTick])
+
   async function handleCreate(stateId: string, title: string) {
     if (!slug || !projectId) return
     try {
@@ -288,6 +334,33 @@ export function WorkItemsPage() {
       }
     })
   }, [issues, quick, me, states, timeZone])
+
+  /** A task's deadline is the assignee's to plan; an assignment's — its controller's (5.B5). */
+  function canMoveDeadline(issue: Issue) {
+    return !readOnly && (issue.kind !== 'assignment' || isReviewer(issue))
+  }
+
+  // Calendar drop (7.F4): the deadline moves to that day, back on refusal.
+  async function handleDueChange(issue: Issue, day: string) {
+    if (!slug || !projectId) return
+    const due = dateInputToIso(day)
+    const snapshot = issues
+    setIssues((prev) => prev.map((i) => (i.id === issue.id ? { ...i, due_date: due } : i)))
+    try {
+      const updated = await updateIssue(slug, projectId, issue.id, { due_date: due })
+      setIssues((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+      const date = longDate(due!)
+      toast.success(
+        issue.due_date
+          ? t('Срок перенесён на {{date}}', { date })
+          : t('Срок назначен: {{date}}', { date }),
+        { id: `due-${issue.id}` },
+      )
+    } catch (err) {
+      setIssues(snapshot)
+      toast.error(errMsg(err, t('Не удалось изменить срок')))
+    }
+  }
 
   async function handlePriority(issue: Issue, priority: IssuePriorityValue) {
     if (!slug || !projectId) return
@@ -372,11 +445,15 @@ export function WorkItemsPage() {
               [
                 { mode: 'board', icon: LayoutGrid, label: t('Доска') },
                 { mode: 'list', icon: List, label: t('Список') },
+                { mode: 'calendar', icon: CalendarDays, label: t('Календарь') },
+                { mode: 'timeline', icon: GanttChart, label: t('Таймлайн') },
               ] as const
             ).map(({ mode, icon: Icon, label }) => (
               <button
                 key={mode}
                 type="button"
+                title={label}
+                aria-pressed={view === mode}
                 onClick={() => setView(mode)}
                 className={cn(
                   'flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors',
@@ -386,7 +463,7 @@ export function WorkItemsPage() {
                 )}
               >
                 <Icon size={14} />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
               </button>
             ))}
           </div>
@@ -482,6 +559,25 @@ export function WorkItemsPage() {
             onAssigneeToggle={handleAssigneeToggle}
             onDelete={handleDelete}
             readOnly={readOnly}
+          />
+        ) : view === 'calendar' ? (
+          <CalendarView
+            issues={visibleIssues}
+            states={states}
+            project={project}
+            timeZone={timeZone}
+            canMove={canMoveDeadline}
+            onDueChange={handleDueChange}
+            onOpen={(issue) => setSelectedId(issue.id)}
+          />
+        ) : view === 'timeline' ? (
+          <TimelineView
+            issues={visibleIssues}
+            states={states}
+            project={project}
+            timeZone={timeZone}
+            relations={relations}
+            onOpen={(issue) => setSelectedId(issue.id)}
           />
         ) : (
           <ListView
