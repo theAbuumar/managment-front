@@ -56,6 +56,7 @@ const TYPES: { key: FeedType; label: () => string }[] = [
   { key: 'people', label: () => translate('Исполнители') },
   { key: 'comments', label: () => translate('Комментарии') },
   { key: 'files', label: () => translate('Файлы') },
+  { key: 'checklist', label: () => translate('Чек-листы') },
   { key: 'trash', label: () => translate('Удаление') },
 ]
 
@@ -68,6 +69,7 @@ const GOOD = new Set([
   'issue.review_approved',
   'issue.restored',
   'issue.deadline_approved',
+  'issue.checklist_checked',
 ])
 
 function zone(): string | undefined {

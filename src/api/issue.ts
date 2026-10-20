@@ -104,6 +104,11 @@ export interface Issue {
   department_id?: string | null
   /** Created from an AI draft a person checked (Ф11, ADR-028). */
   ai_assisted?: boolean
+  /** Checklist progress «done/total» (6.B5). */
+  checklist_total?: number
+  checklist_done?: number
+  /** The recurring rule that created this issue (6.B4). */
+  recurring_rule_id?: string | null
   department?: { id: string; name: string; short_name: string | null } | null
   /** Present in the workspace-wide list (7.B1). */
   project?: ProjectBrief
@@ -194,6 +199,8 @@ export interface CreateIssueBody {
   primary_assignee_id?: string
   /** Made from an AI draft (POST WS/ai/draft-issues). */
   ai_assisted?: boolean
+  /** Checklist items in order (6.B5), e.g. from a template. */
+  checklist?: string[]
 }
 
 export const createIssue = (
@@ -381,5 +388,35 @@ export const distributeIssue = (
 ) =>
   client.post<unknown, Issue>(
     `/workspaces/${slug}/projects/${projectId}/issues/distribute`,
+    body,
+  )
+
+// ─── Bulk changes (6.B6) ──────────────────────────────────────────────────────
+
+/** One change for up to 100 issues; each is checked by the regular rules. */
+export interface BulkBody {
+  issue_ids: string[]
+  state_id?: string
+  priority?: IssuePriorityValue
+  due_date?: string | null
+  /** The issues' assignees become exactly this person. */
+  assignee_id?: string
+  add_label_id?: string
+  remove_label_id?: string
+}
+
+export interface BulkResult {
+  updated: string[]
+  /** Not changed, with the error code (REVIEW_REQUIRED, DEADLINE_CHANGE_FORBIDDEN…). */
+  failed: { issue_id: string; code: string; message: string }[]
+}
+
+export const bulkUpdateIssues = (
+  slug: string,
+  projectId: string,
+  body: BulkBody,
+) =>
+  client.post<unknown, BulkResult>(
+    `/workspaces/${slug}/projects/${projectId}/issues/bulk`,
     body,
   )

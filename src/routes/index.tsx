@@ -53,6 +53,18 @@ const ProjectLabelsPage = lazyPage(
   () => import('@/features/projects/ProjectLabelsPage'),
   'ProjectLabelsPage',
 )
+const ProjectTemplatesPage = lazyPage(
+  () => import('@/features/templates/TemplatesPage'),
+  'ProjectTemplatesPage',
+)
+const WorkspaceTemplatesPage = lazyPage(
+  () => import('@/features/templates/TemplatesPage'),
+  'WorkspaceTemplatesPage',
+)
+const ProjectRecurringPage = lazyPage(
+  () => import('@/features/templates/RecurringPage'),
+  'ProjectRecurringPage',
+)
 const WorkItemsPage = lazyPage(
   () => import('@/features/work-items/WorkItemsPage'),
   'WorkItemsPage',
@@ -143,6 +155,7 @@ export const router = createBrowserRouter([
           { path: 'members', element: <MembersPage /> },
           { path: 'structure', element: <OrgStructurePage /> },
           { path: 'control', element: <ControlSettingsPage /> },
+          { path: 'templates', element: <WorkspaceTemplatesPage /> },
           { path: 'audit', element: <AuditLogPage /> },
         ],
       },
@@ -154,6 +167,8 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="general" replace /> },
           { path: 'general', element: <ProjectGeneralPage /> },
           { path: 'labels', element: <ProjectLabelsPage /> },
+          { path: 'templates', element: <ProjectTemplatesPage /> },
+          { path: 'recurring', element: <ProjectRecurringPage /> },
         ],
       },
       {

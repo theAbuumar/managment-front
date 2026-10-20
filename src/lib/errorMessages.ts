@@ -104,6 +104,10 @@ const ERROR_MESSAGES: Record<string, () => string> = {
     t('Нужен файл .docx, .pdf или .txt до 10 МБ с читаемым текстом.'),
   PROJECT_IN_TRASH: () =>
     t('Проект этой задачи тоже в корзине. Сначала восстановите проект.'),
+  // Ф6: checklists and recurring rules.
+  CHECKLIST_FULL: () => t('В чек-листе не больше 100 пунктов.'),
+  AUTHOR_NOT_MEMBER: () =>
+    t('Автор правила больше не участвует в пространстве или не видит проект.'),
 }
 
 export function getFriendlyMessage(code?: string): string {

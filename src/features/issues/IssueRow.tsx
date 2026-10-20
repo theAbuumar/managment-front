@@ -3,6 +3,7 @@ import { ShieldCheck, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
+import { ChecklistBadge } from '@/components/ui/checklist-badge'
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { shortName } from '@/lib/people'
 import { issueKey } from '@/lib/links'
@@ -64,6 +65,11 @@ export function IssueRow({
           {issue.state.name}
         </span>
       )}
+      <ChecklistBadge
+        done={issue.checklist_done}
+        total={issue.checklist_total}
+        className="hidden sm:flex"
+      />
       <DeadlineBadge
         dueDate={issue.due_date}
         group={issue.state?.group}

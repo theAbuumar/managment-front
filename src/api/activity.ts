@@ -42,6 +42,7 @@ export type FeedType =
   | 'people'
   | 'comments'
   | 'files'
+  | 'checklist'
   | 'trash'
 
 export interface FeedItem {

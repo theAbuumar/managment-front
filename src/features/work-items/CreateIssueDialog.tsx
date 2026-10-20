@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { CalendarRange, Check, CloudCheck, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react'
+import { CalendarRange, Check, CloudCheck, FileStack, ListChecks, Repeat, Search, ShieldCheck, Sparkles, Star, UserCheck, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAiEnabled } from '@/stores/aiStore'
 import { toast } from 'sonner'
@@ -27,6 +27,20 @@ import { createIssue, type Issue, type IssueKind, type IssuePriorityValue } from
 import type { State } from '@/api/state'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
 import { createDraft, deleteDraft, getDraft, updateDraft, type DraftData } from '@/api/drafts'
+import { getTemplates, type IssueTemplate } from '@/api/templates'
+import { createRecurringRule, type Schedule } from '@/api/recurring'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { plural } from '@/lib/plural'
+import { ChecklistEditor } from '@/features/templates/ChecklistEditor'
+import { RepeatFields } from '@/features/templates/RepeatFields'
+import {
+  addDays,
+  dayLabel,
+  defaultSchedule,
+  describeSchedule,
+  occurrenceOnOrAfter,
+  todayIn,
+} from '@/features/templates/recurrence'
 
 const PRIORITIES: IssuePriorityValue[] = ['urgent', 'high', 'medium', 'low', 'none']
 
@@ -145,7 +159,7 @@ export function PriorityChip({ value, onChange }: { value: IssuePriorityValue; o
 }
 
 // --- Assignees chip (multi; first = ответственный) -------------------------
-function AssigneesChip({
+export function AssigneesChip({
   members,
   value,
   primary,
@@ -284,6 +298,95 @@ export function DueDateChip({ value, onChange }: { value: string; onChange: (v: 
   )
 }
 
+// --- Checklist chip (6.F5): the steps typed or taken from a template --------
+function ChecklistChip({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation()
+  return (
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger asChild>
+        <button type="button" className={cn(chipCls, value.length > 0 && 'text-foreground')}>
+          <ListChecks size={13} />
+          {value.length > 0 ? t('Чек-лист · {{n}}', { n: value.length }) : t('Чек-лист')}
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopContent className="max-h-80 w-80 overflow-y-auto p-2">
+        <ChecklistEditor value={value} onChange={onChange} />
+      </PopContent>
+    </PopoverPrimitive.Root>
+  )
+}
+
+// --- Template picker (6.F3): fills the form; the person checks and creates ----
+function TemplatePicker({
+  templates,
+  onPick,
+}: {
+  templates: IssueTemplate[]
+  onPick: (template: IssueTemplate) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const groups = [
+    { title: t('Шаблоны пространства'), items: templates.filter((x) => !x.project_id) },
+    { title: t('Шаблоны проекта'), items: templates.filter((x) => x.project_id) },
+  ].filter((g) => g.items.length > 0)
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title={t('Заполнить форму по шаблону')}
+        >
+          <FileStack size={13} />
+          {t('Шаблон')}
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="end"
+          sideOffset={6}
+          className={cn(popCls, 'max-h-80 w-80 overflow-y-auto')}
+        >
+          {groups.map((g) => (
+            <div key={g.title} className="py-1">
+              <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {g.title}
+              </p>
+              {g.items.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => {
+                    onPick(tpl)
+                    setOpen(false)
+                  }}
+                  className={cn(optionCls, 'flex-col items-start gap-0.5')}
+                >
+                  <span className="w-full truncate text-left">{tpl.name}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {[
+                      tpl.data.kind === 'assignment' ? t('поручение') : t('задача'),
+                      tpl.due_in_days !== null && t('срок {{n}} дн.', { n: tpl.due_in_days }),
+                      tpl.data.checklist?.length &&
+                        t('чек-лист {{n}} {{unit}}', {
+                          n: tpl.data.checklist.length,
+                          unit: plural(tpl.data.checklist.length, [t('пункт'), t('пункта'), t('пунктов')]),
+                        }),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  )
+}
+
 export function CreateIssueDialog({
   open,
   onOpenChange,
@@ -317,6 +420,16 @@ export function CreateIssueDialog({
   const [controllerId, setControllerId] = useState('')
   const [requiresReview, setRequiresReview] = useState(true)
   const [due, setDue] = useState('')
+  // Ф6: a checklist, labels and the template the form was filled from; «Повторять».
+  const [checklist, setChecklist] = useState<string[]>([])
+  const [labelIds, setLabelIds] = useState<string[]>([])
+  const [templates, setTemplates] = useState<IssueTemplate[]>([])
+  const timeZone =
+    useWorkspaceStore((s) => s.workspace?.timezone) ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const today = todayIn(timeZone)
+  const [repeat, setRepeat] = useState(false)
+  const [schedule, setSchedule] = useState<Schedule>(() => defaultSchedule(today))
+  const [dueInDays, setDueInDays] = useState('5')
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [busy, setBusy] = useState(false)
   // Drafts (7.F6): the form saves itself while typed; saves run one at a time,
@@ -335,13 +448,18 @@ export function CreateIssueDialog({
         states.find((s) => s.is_default) ?? states.find((s) => s.group === 'unstarted') ?? states[0]
       setStateId((prev) => prev || fallback?.id || '')
       setControllerId((prev) => prev || me || '')
-      const list = await getWorkspaceMembers(slug).catch(() => [])
-      if (!cancelled) setMembers(list)
+      const [list, tpls] = await Promise.all([
+        getWorkspaceMembers(slug).catch(() => []),
+        getTemplates(slug, projectId).catch(() => ({ data: [] })),
+      ])
+      if (cancelled) return
+      setMembers(list)
+      setTemplates(tpls.data)
     })()
     return () => {
       cancelled = true
     }
-  }, [open, slug, states, me])
+  }, [open, slug, projectId, states, me])
 
   // The first chosen assignee is the primary one until changed explicitly.
   const effectivePrimary =
@@ -368,6 +486,7 @@ export function CreateIssueDialog({
         if (d.controller_id) setControllerId(d.controller_id)
         if (d.requires_review !== undefined) setRequiresReview(d.requires_review)
         setDue(isoToDateInput(d.due_date))
+        setChecklist(d.checklist ?? [])
         setDraftState('saved')
       } catch {
         if (!cancelled) toast.error(t('Черновик не найден — возможно, он уже опубликован'))
@@ -391,6 +510,7 @@ export function CreateIssueDialog({
     controller_id: kind === 'assignment' ? controllerId || null : null,
     requires_review: requiresReview,
     due_date: dateInputToIso(due),
+    checklist,
   }
   const serialized = JSON.stringify(draftData)
 
@@ -463,8 +583,34 @@ export function CreateIssueDialog({
     setControllerId('')
     setRequiresReview(true)
     setDue('')
+    setChecklist([])
+    setLabelIds([])
+    setRepeat(false)
+    setSchedule(defaultSchedule(today))
+    setDueInDays('5')
     setDraftState('idle')
   }
+
+  /** Fill the form from a template; what was typed in the title stays if the template has none. */
+  function applyTemplate(tpl: IssueTemplate) {
+    const d = tpl.data
+    setKind(d.kind ?? 'task')
+    setTitle(d.title)
+    setDescription(d.description ?? '')
+    setBasis(d.basis ?? '')
+    setPriority(d.priority ?? 'none')
+    setAssigneeIds(d.assignee_ids ?? [])
+    setPrimaryId(d.primary_assignee_id)
+    if (d.controller_id) setControllerId(d.controller_id)
+    setRequiresReview(d.requires_review ?? d.kind === 'assignment')
+    setLabelIds(d.label_ids ?? [])
+    setChecklist(d.checklist ?? [])
+    setDue(tpl.due_in_days === null ? '' : addDays(today, tpl.due_in_days))
+    setDueInDays(tpl.due_in_days === null ? '' : String(tpl.due_in_days))
+    toast.success(t('Форма заполнена по шаблону «{{name}}»', { name: tpl.name }))
+  }
+
+  const nextRun = repeat ? occurrenceOnOrAfter(schedule, addDays(today, 1)) : null
 
   const isAssignment = kind === 'assignment'
 
@@ -472,6 +618,39 @@ export function CreateIssueDialog({
     if (!title.trim() || !stateId || busy) return
     setBusy(true)
     try {
+      if (repeat) {
+        // «Повторять» (6.F4): the first issue now, the rule for the next ones.
+        const days = dueInDays.trim() === '' ? null : Math.min(365, Math.max(0, Number(dueInDays) || 0))
+        const rule = await createRecurringRule(slug, projectId, {
+          ...schedule,
+          due_in_days: days,
+          create_now: true,
+          data: {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            kind,
+            priority,
+            assignee_ids: assigneeIds,
+            primary_assignee_id: effectivePrimary,
+            label_ids: labelIds,
+            checklist,
+            ...(isAssignment && {
+              controller_id: controllerId || null,
+              requires_review: requiresReview,
+              basis: basis.trim() || null,
+            }),
+          },
+        })
+        toast.success(
+          isAssignment ? t('Поручение создано и будет повторяться') : t('Задача создана и будет повторяться'),
+          { description: describeSchedule(schedule) },
+        )
+        if (rule.created_issue) onCreated(rule.created_issue)
+        dropDraft(true)
+        reset()
+        onOpenChange(false)
+        return
+      }
       const issue = await createIssue(slug, projectId, {
         title: title.trim(),
         state_id: stateId,
@@ -481,6 +660,8 @@ export function CreateIssueDialog({
         primary_assignee_id: effectivePrimary,
         due_date: dateInputToIso(due),
         kind,
+        ...(labelIds.length > 0 && { label_ids: labelIds }),
+        ...(checklist.length > 0 && { checklist }),
         ...(isAssignment && {
           controller_id: controllerId || null,
           requires_review: requiresReview,
@@ -508,9 +689,16 @@ export function CreateIssueDialog({
         else onOpenChange(v)
       }}
     >
-      <DialogContent className="max-w-xl">
+      {/* Tall with «Повторять» on: scrolls inside the screen on a phone. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto">
         <DialogHeader className="flex-row items-center gap-2 space-y-0 pr-8">
           <DialogTitle>{isAssignment ? t('Новое поручение') : t('Новая задача')}</DialogTitle>
+          {/* No templates — no button (ADR-019). */}
+          {templates.length > 0 && (
+            <span className="ml-auto">
+              <TemplatePicker templates={templates} onPick={applyTemplate} />
+            </span>
+          )}
           {/* Ф11 11.F2: many assignments at once from a protocol or a text. */}
           {aiEnabled && (
             <button
@@ -519,7 +707,10 @@ export function CreateIssueDialog({
                 onOpenChange(false)
                 navigate(`/ai/drafts?project=${projectId}`)
               }}
-              className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-500/10 dark:text-violet-300"
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-500/10 dark:text-violet-300',
+                templates.length === 0 && 'ml-auto',
+              )}
               title={t('AI найдёт поручения в протоколе или тексте и подготовит черновики')}
             >
               <Sparkles size={13} />
@@ -579,7 +770,8 @@ export function CreateIssueDialog({
           )}
 
           <div className="flex flex-wrap gap-1.5">
-            <StateChip states={states} value={stateId} onChange={setStateId} />
+            {/* A repeated issue starts in the project's default state. */}
+            {!repeat && <StateChip states={states} value={stateId} onChange={setStateId} />}
             <PriorityChip value={priority} onChange={setPriority} />
             <AssigneesChip
               members={members}
@@ -589,7 +781,8 @@ export function CreateIssueDialog({
               onPrimary={setPrimaryId}
             />
             {isAssignment && <ControllerChip members={members} value={controllerId} onChange={setControllerId} />}
-            <DueDateChip value={due} onChange={setDue} />
+            {!repeat && <DueDateChip value={due} onChange={setDue} />}
+            <ChecklistChip value={checklist} onChange={setChecklist} />
           </div>
 
           {isAssignment && (
@@ -603,6 +796,49 @@ export function CreateIssueDialog({
               <Switch checked={requiresReview} onCheckedChange={setRequiresReview} />
             </label>
           )}
+
+          {/* Ф6 6.F4: a report that creates itself on schedule. */}
+          <div className="rounded-md border border-border">
+            <label className="flex items-center justify-between gap-3 px-3 py-2">
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <Repeat size={14} className="text-muted-foreground" />
+                  {t('Повторять')}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t('Первая задача создаётся сейчас, следующие — сами по расписанию.')}
+                </span>
+              </span>
+              <Switch checked={repeat} onCheckedChange={setRepeat} aria-label={t('Повторять')} />
+            </label>
+            {repeat && (
+              <div className="flex flex-col gap-2.5 border-t border-border px-3 py-2.5">
+                <RepeatFields
+                  value={schedule}
+                  onChange={setSchedule}
+                  next={
+                    nextRun
+                      ? t('следующая — {{date}}', { date: dayLabel(nextRun) })
+                      : t('следующих не будет: дата окончания уже прошла')
+                  }
+                />
+                <label className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                  {t('Срок исполнения — через')}
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={dueInDays}
+                    onChange={(e) => setDueInDays(e.target.value)}
+                    placeholder="—"
+                    className="h-8 w-16 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    aria-label={t('Срок исполнения в днях')}
+                  />
+                  {t('дн. после создания')}
+                </label>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter>

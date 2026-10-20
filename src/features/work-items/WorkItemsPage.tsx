@@ -34,6 +34,7 @@ import { getProjectRelations, type ProjectRelation } from '@/api/relation'
 import { dateInputToIso, longDate } from '@/lib/dates'
 import { BoardView } from './BoardView'
 import { ListView } from './ListView'
+import { BulkBar } from './BulkBar'
 import { CalendarView } from './views/CalendarView'
 import { TimelineView } from './views/TimelineView'
 import { CreateIssueDialog } from './CreateIssueDialog'
@@ -93,6 +94,9 @@ export function WorkItemsPage() {
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [distributeOpen, setDistributeOpen] = useState(false)
+  // Bulk selection in the list (6.F6); the last clicked row anchors a Shift range.
+  const [selection, setSelection] = useState<Set<string>>(() => new Set())
+  const lastSelected = useRef<string | null>(null)
   // The open issue lives in the URL (?issue=<id>) so notifications, the home page
   // and deep links can open a specific work item.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -343,6 +347,46 @@ export function WorkItemsPage() {
     )
   }, [issues, filtered, filters, me, states, timeZone])
 
+  // ─── Bulk selection (6.F6): only rows on screen count ───
+  const listOrder = useMemo(
+    () => states.flatMap((s) => visibleIssues.filter((i) => i.state_id === s.id)).map((i) => i.id),
+    [states, visibleIssues],
+  )
+  const selectedIds = useMemo(
+    () => (view === 'list' ? listOrder.filter((id) => selection.has(id)) : []),
+    [view, listOrder, selection],
+  )
+  function selectIssue(issue: Issue, shift: boolean) {
+    setSelection((prev) => {
+      const next = new Set(prev)
+      const anchor = lastSelected.current
+      if (shift && anchor && anchor !== issue.id && listOrder.includes(anchor)) {
+        const [a, b] = [listOrder.indexOf(anchor), listOrder.indexOf(issue.id)].sort((x, y) => x - y)
+        for (const id of listOrder.slice(a, b + 1)) next.add(id)
+      } else if (next.has(issue.id)) next.delete(issue.id)
+      else next.add(issue.id)
+      return next
+    })
+    lastSelected.current = issue.id
+  }
+  function selectGroup(group: Issue[], select: boolean) {
+    setSelection((prev) => {
+      const next = new Set(prev)
+      for (const i of group) {
+        if (select) next.add(i.id)
+        else next.delete(i.id)
+      }
+      return next
+    })
+  }
+  async function afterBulk(result: { updated: string[]; failed: { issue_id: string }[] }) {
+    // What failed stays selected, so it can be handled separately.
+    setSelection(new Set(result.failed.map((f) => f.issue_id)))
+    if (!slug || !projectId || result.updated.length === 0) return
+    const all = await getAllIssues(slug, projectId, { sort_by: 'sort_order', order: 'asc' }).catch(() => null)
+    if (all) setIssues(all)
+  }
+
   // What a saved view of this page would hold (7.F5).
   const viewFilters = boardFilterValues(filters)
   const filterChips = describeFilters(viewFilters, {
@@ -552,7 +596,7 @@ export function WorkItemsPage() {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className={cn('relative flex-1 overflow-hidden', selectedIds.length > 0 && 'pb-14')}>
         {loading ? (
           <div className="flex gap-3 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -617,6 +661,21 @@ export function WorkItemsPage() {
             onOpen={(issue) => setSelectedId(issue.id)}
             onDelete={handleDelete}
             readOnly={readOnly}
+            selected={selection}
+            onSelect={selectIssue}
+            onSelectGroup={selectGroup}
+          />
+        )}
+        {!readOnly && selectedIds.length > 0 && slug && projectId && (
+          <BulkBar
+            slug={slug}
+            projectId={projectId}
+            selected={selectedIds}
+            states={states}
+            members={members}
+            labels={labels}
+            onDone={afterBulk}
+            onClear={() => setSelection(new Set())}
           />
         )}
       </div>

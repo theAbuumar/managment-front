@@ -20,6 +20,7 @@ import {
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
+import { ChecklistBadge, RecurringMark } from '@/components/ui/checklist-badge'
 import { cn } from '@/lib/utils'
 import { shortName } from '@/lib/people'
 import { issueLink } from '@/lib/links'
@@ -352,6 +353,8 @@ export function IssueCard({
         <PriorityMenu value={issue.priority} onChange={onPriorityChange} />
         <StateMenu states={states} value={issue.state_id} onChange={onStateChange} />
         <DeadlineBadge dueDate={issue.due_date} group={group} completedAt={issue.completed_at} />
+        <ChecklistBadge done={issue.checklist_done} total={issue.checklist_total} />
+        <RecurringMark ruleId={issue.recurring_rule_id} />
         {moves > 0 && (
           <span
             title={t('Срок переносился: {{n}}', { n: moves })}

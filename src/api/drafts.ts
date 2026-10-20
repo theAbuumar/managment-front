@@ -16,6 +16,7 @@ export interface DraftData {
   requires_review?: boolean
   basis?: string | null
   due_date?: string | null
+  checklist?: string[]
 }
 
 export interface IssueDraft {

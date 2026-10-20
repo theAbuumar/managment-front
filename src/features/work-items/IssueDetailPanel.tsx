@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   Trash2,
@@ -19,6 +20,8 @@ import {
   Paperclip,
   Send,
   Sparkles,
+  FileStack,
+  Repeat,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { toastIssueTrashed } from '@/features/trash/trashToast'
@@ -59,6 +62,9 @@ import { getActivity, type Activity } from '@/api/activity'
 import { getWorkspaceMembers, type WorkspaceMember } from '@/api/workspace'
 import { getAttachments, type Attachment } from '@/api/attachment'
 import { AttachmentsSection } from '@/features/work-items/attachments/AttachmentsSection'
+import { ChecklistSection } from '@/features/work-items/checklist/ChecklistSection'
+import { getChecklist } from '@/api/checklist'
+import { TemplateDialog, type TemplateDraft } from '@/features/templates/TemplateDialog'
 import {
   getReviews,
   getDeadlineRequests,
@@ -157,6 +163,8 @@ export function IssueDetailPanel({
   // «Кратко» (Ф11 11.F3): shown for the issue it was asked for only.
   const aiEnabled = useAiEnabled()
   const [summaryFor, setSummaryFor] = useState<string | null>(null)
+  // «Сохранить как шаблон» (6.F3): the issue's fields, prefilled.
+  const [asTemplate, setAsTemplate] = useState<TemplateDraft | null>(null)
 
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
@@ -341,6 +349,36 @@ export function IssueDetailPanel({
     }
   }
 
+  async function saveAsTemplate() {
+    const items =
+      (issue!.checklist_total ?? 0) > 0
+        ? (await getChecklist(slug, projectId, issue!.id).catch(() => null))?.data.map((i) => i.text)
+        : undefined
+    // The deadline as days after creation, in the workspace zone.
+    const created = isoToDateInput(issue!.created_at, timeZone)
+    const due = isoToDateInput(issue!.due_date, timeZone)
+    const days = due
+      ? Math.max(0, Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${created}T00:00:00Z`)) / 86_400_000))
+      : null
+    setAsTemplate({
+      name: issue!.title.slice(0, 80),
+      due_in_days: days,
+      data: {
+        title: issue!.title,
+        kind: issue!.kind,
+        priority: issue!.priority,
+        ...(issue!.description && { description: issue!.description }),
+        assignee_ids: issue!.assignees.map((a) => a.user_id),
+        primary_assignee_id: issue!.assignees.find((a) => a.is_primary)?.user_id,
+        controller_id: issue!.controller_id,
+        requires_review: issue!.requires_review,
+        basis: issue!.basis,
+        label_ids: issue!.labels.map((l) => l.label_id),
+        ...(items?.length && { checklist: items }),
+      },
+    })
+  }
+
   async function copyLink() {
     if (!project) return
     try {
@@ -442,6 +480,16 @@ export function IssueDetailPanel({
             </button>
             {!readOnly && (
               <button
+                onClick={() => void saveAsTemplate()}
+                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent"
+                title={t('Сохранить как шаблон')}
+                aria-label={t('Сохранить как шаблон')}
+              >
+                <FileStack size={16} />
+              </button>
+            )}
+            {!readOnly && (
+              <button
                 onClick={handleDelete}
                 className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 title={t('Удалить задачу')}
@@ -498,6 +546,16 @@ export function IssueDetailPanel({
               {issue.ai_assisted && (
                 <div className="mt-1.5">
                   <AiMark label={t('Подготовлено с помощью AI, проверено автором')} />
+                </div>
+              )}
+
+              {issue.recurring_rule_id && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                  <Repeat size={14} className="shrink-0" />
+                  <span>{t('Создана повторяющимся правилом')}</span>
+                  <Link to={`/projects/${projectId}/settings/recurring`} className="text-primary hover:underline">
+                    {t('расписание')}
+                  </Link>
                 </div>
               )}
 
@@ -562,6 +620,16 @@ export function IssueDetailPanel({
                 onRefresh={refreshFeed}
               />
             )}
+
+            <ChecklistSection
+              key={issue.id}
+              slug={slug}
+              projectId={projectId}
+              issueId={issue.id}
+              total={issue.checklist_total ?? 0}
+              readOnly={readOnly}
+              onChanged={refreshFeed}
+            />
 
             <AttachmentsSection
               slug={slug}
@@ -1077,6 +1145,17 @@ export function IssueDetailPanel({
             </div>
           </div>
         </div>
+        {asTemplate && (
+          <TemplateDialog
+            open
+            onOpenChange={(open) => !open && setAsTemplate(null)}
+            slug={slug}
+            projectId={projectId}
+            initial={asTemplate}
+            canWorkspace={myRole === 'owner' || myRole === 'admin'}
+            onSaved={() => setAsTemplate(null)}
+          />
+        )}
       </SheetContent>
     </Sheet>
   )

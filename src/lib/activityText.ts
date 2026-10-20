@@ -62,6 +62,17 @@ export function activityText(a: ActivityLike, names: ActivityNames): string {
       return t('одобрил(а) перенос срока')
     case 'issue.deadline_rejected':
       return t('отклонил(а) перенос срока')
+    // Checklist (6.B5): the item's text is in the value.
+    case 'issue.checklist_added':
+      return t('добавил(а) пункт чек-листа «{{text}}»', { text: a.new_value ?? '' })
+    case 'issue.checklist_checked':
+      return t('отметил(а) пункт «{{text}}»', { text: a.new_value ?? '' })
+    case 'issue.checklist_unchecked':
+      return t('снял(а) отметку с пункта «{{text}}»', { text: a.new_value ?? '' })
+    case 'issue.checklist_updated':
+      return t('переименовал(а) пункт «{{old}}» в «{{text}}»', { old: a.old_value ?? '', text: a.new_value ?? '' })
+    case 'issue.checklist_removed':
+      return t('удалил(а) пункт чек-листа «{{text}}»', { text: a.old_value ?? '' })
     case 'issue.updated':
       switch (a.field) {
         case 'state_id':

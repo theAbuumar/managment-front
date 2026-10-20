@@ -10,6 +10,7 @@ import {
 import { PRIORITY_CONFIG } from '@/components/ui/status-badge'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
+import { ChecklistBadge, RecurringMark } from '@/components/ui/checklist-badge'
 import { shortName } from '@/lib/people'
 import { cn } from '@/lib/utils'
 import { VirtualStack } from '@/components/ui/virtual-stack'
@@ -27,6 +28,12 @@ interface ListViewProps {
   onDelete: (issue: Issue) => void
   /** Guest: no create, no row menu (12.B4). */
   readOnly?: boolean
+  /** Bulk selection (6.F6): ids of the checked rows; absent — no checkboxes. */
+  selected?: Set<string>
+  /** A row's checkbox; `shift` — select the range from the last clicked row. */
+  onSelect?: (issue: Issue, shift: boolean) => void
+  /** A group's checkbox: all its rows on or off. */
+  onSelectGroup?: (issues: Issue[], select: boolean) => void
 }
 
 // Memoized with callbacks that take the issue: scrolling a long list re-renders
@@ -37,6 +44,8 @@ const IssueRow = memo(function IssueRow({
   project,
   onOpen: open,
   onDelete: remove,
+  checked,
+  onSelect,
 }: {
   issue: Issue
   group: State['group']
@@ -44,6 +53,8 @@ const IssueRow = memo(function IssueRow({
   onOpen: (issue: Issue) => void
   /** Absent for a guest: the row has no menu (12.B4). */
   onDelete?: (issue: Issue) => void
+  checked?: boolean
+  onSelect?: (issue: Issue, shift: boolean) => void
 }) {
   const onOpen = () => open(issue)
   const onDelete = remove && (() => remove(issue))
@@ -58,8 +69,25 @@ const IssueRow = memo(function IssueRow({
   return (
     <div
       onClick={onOpen}
-      className="group flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-muted/60"
+      className={cn(
+        'group flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-muted/60',
+        checked && 'bg-primary/5',
+      )}
     >
+      {onSelect && (
+        <input
+          type="checkbox"
+          checked={!!checked}
+          // Shift-click selects the range: read the key on the click itself.
+          onClick={(e) => {
+            e.stopPropagation()
+            onSelect(issue, e.shiftKey)
+          }}
+          onChange={() => undefined}
+          aria-label={t('Выбрать {{title}}', { title: issue.title })}
+          className="size-4 shrink-0 accent-primary"
+        />
+      )}
       <PIcon size={14} className={meta.iconColor} />
       <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
         {identifier}
@@ -74,6 +102,16 @@ const IssueRow = memo(function IssueRow({
       <span className="flex-1 truncate text-sm text-foreground">
         {issue.title}
       </span>
+      {/* The title comes first on a phone: the marks wait for a wider screen. */}
+      <RecurringMark
+        ruleId={issue.recurring_rule_id}
+        className="hidden sm:inline"
+      />
+      <ChecklistBadge
+        done={issue.checklist_done}
+        total={issue.checklist_total}
+        className="hidden sm:flex"
+      />
       <DeadlineBadge
         dueDate={issue.due_date}
         group={group}
@@ -148,6 +186,9 @@ export function ListView({
   onOpen,
   onDelete,
   readOnly = false,
+  selected,
+  onSelect,
+  onSelectGroup,
 }: ListViewProps) {
   const { t } = useTranslation()
   const [composerFor, setComposerFor] = useState<string | null>(null)
@@ -156,8 +197,11 @@ export function ListView({
   )
 
   const lines: Line[] = []
+  const byState = new Map(
+    states.map((s) => [s.id, issues.filter((i) => i.state_id === s.id)]),
+  )
   states.forEach((state, index) => {
-    const groupIssues = issues.filter((i) => i.state_id === state.id)
+    const groupIssues = byState.get(state.id) ?? []
     lines.push({
       kind: 'header',
       state,
@@ -180,6 +224,24 @@ export function ListView({
               !line.first && 'border-t border-border',
             )}
           >
+            {onSelectGroup && line.count > 0 && (
+              <input
+                type="checkbox"
+                checked={(byState.get(line.state.id) ?? []).every((i) =>
+                  selected?.has(i.id),
+                )}
+                onChange={(e) =>
+                  onSelectGroup(
+                    byState.get(line.state.id) ?? [],
+                    e.target.checked,
+                  )
+                }
+                aria-label={t('Выбрать все в «{{state}}»', {
+                  state: line.state.name,
+                })}
+                className="size-4 shrink-0 accent-primary"
+              />
+            )}
             <span
               className="size-2.5 shrink-0 rounded-full"
               style={{ background: line.state.color }}
@@ -207,6 +269,8 @@ export function ListView({
               project={project}
               onOpen={onOpen}
               onDelete={readOnly ? undefined : onDelete}
+              checked={selected?.has(line.issue.id)}
+              onSelect={readOnly ? undefined : onSelect}
             />
           </div>
         )
