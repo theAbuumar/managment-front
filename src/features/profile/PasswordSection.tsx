@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import {
   changePassword,
+  getAuthProviders,
   getMe,
   requestPasswordCode,
   setPassword,
@@ -66,6 +67,9 @@ export function PasswordSection({
   const [code, setCode] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Setting a password takes a code from a letter: without mail on the server only
+  // a known password can be changed (no buttons that end in an error).
+  const [mailOn, setMailOn] = useState<boolean | null>(null)
   const section = useRef<HTMLElement>(null)
 
   // The stored user may be older than this section: ask the server once.
@@ -77,6 +81,12 @@ export function PasswordSection({
       })
       .catch(() => undefined)
   }, [setUser])
+
+  useEffect(() => {
+    getAuthProviders()
+      .then((p) => setMailOn(p.email))
+      .catch(() => setMailOn(true))
+  }, [])
 
   // From the letter «Пароль изменён»: /profile#password.
   useEffect(() => {
@@ -280,23 +290,31 @@ export function PasswordSection({
                   : t('Пароль задан')
                 : t('Пароль не задан')}
           </p>
+          {user.email && mailOn === false && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(
+                'Задать пароль или заменить забытый можно, когда на сервере настроена почта: пароль подтверждается кодом из письма.',
+              )}
+            </p>
+          )}
         </div>
-        {user.email && step === 'idle' && (
+        {user.email && step === 'idle' && mailOn !== null && (
           <div className="flex shrink-0 flex-wrap gap-2">
-            {hasPassword ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => reset('change')}
-                >
-                  {t('Сменить пароль')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => reset('set')}>
-                  {t('Не помню пароль')}
-                </Button>
-              </>
-            ) : (
+            {hasPassword && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => reset('change')}
+              >
+                {t('Сменить пароль')}
+              </Button>
+            )}
+            {hasPassword && mailOn && (
+              <Button size="sm" variant="ghost" onClick={() => reset('set')}>
+                {t('Не помню пароль')}
+              </Button>
+            )}
+            {!hasPassword && mailOn && (
               <Button size="sm" onClick={() => reset('set')}>
                 {t('Задать пароль')}
               </Button>

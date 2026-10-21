@@ -8,8 +8,12 @@
 
 {$SITE_URL:http://localhost} {
 	# API, файлы локального хранилища, проверки живости и готовности и Swagger — на бэк.
-	# Поток событий (SSE) Caddy отдаёт без буферизации сам.
-	@backend path /api/* /internal/storage/* /health /ready /docs /docs/*
+	# Поток событий (SSE) Caddy отдаёт без буферизации сам. Руководство пользователя
+	# лежит в статике сайта (`/docs/user-guide.pdf`, ссылка из «О системе»), а не в Swagger.
+	@backend {
+		path /api/* /internal/storage/* /health /ready /docs /docs/*
+		not path /docs/user-guide.pdf
+	}
 	handle @backend {
 		reverse_proxy {$API_UPSTREAM:api:3000}
 	}
