@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
   BarChart3,
   Bell,
+  CalendarClock,
   Building2,
   ChevronRight,
   CircleDot,
@@ -404,6 +405,14 @@ export function CommandPalette() {
         icon: iconOf(BarChart3),
         label: t('Аналитика'),
         run: () => go('/analytics'),
+      },
+      {
+        id: 'report-schedules',
+        text: t('Плановые отчёты справка по расписанию рассылка отчётов'),
+        show: FEATURES.analytics && !guest,
+        icon: iconOf(CalendarClock),
+        label: t('Плановые отчёты'),
+        run: () => go('/settings/reports'),
       },
       {
         id: 'ai',

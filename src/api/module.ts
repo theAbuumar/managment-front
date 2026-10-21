@@ -1,6 +1,6 @@
 import client from './client'
 import { t } from '@/i18n'
-import type { GroupProgress } from './cycle'
+import type { Burndown, GroupProgress } from './cycle'
 
 // Модули (ADR-021, 4.F4): a lasting part of a project's work with a lead and a
 // status. An issue may be in any number of modules.
@@ -93,3 +93,11 @@ export const removeIssueFromModule = (
   client.delete<unknown, void>(
     `${base(slug, projectId)}/${moduleId}/issues/${issueId}`,
   )
+
+/** Burndown and burnup from the start to the target date (10.B7, ADR-032). */
+export const getModuleBurndown = (
+  slug: string,
+  projectId: string,
+  moduleId: string,
+) =>
+  client.get<unknown, Burndown>(`${base(slug, projectId)}/${moduleId}/burndown`)

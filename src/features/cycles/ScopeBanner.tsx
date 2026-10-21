@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  TrendingDown,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,21 @@ import {
   type Scope,
   type ScopeKind,
 } from './scopes'
+
+// The chart library loads only when the chart is opened (12.F4).
+const BurndownChart = lazy(() =>
+  import('./BurndownChart').then((m) => ({ default: m.BurndownChart })),
+)
+
+const CHART_KEY = 'scope-banner-chart'
+
+function chartWanted(): boolean {
+  try {
+    return localStorage.getItem(CHART_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 /**
  * The board opened for one cycle or module (`?cycle=` / `?module=`): what it
@@ -80,6 +96,17 @@ export function ScopeBanner({
   const [editing, setEditing] = useState(false)
   // A fresh form and selection on every opening.
   const [openings, setOpenings] = useState(0)
+  // «График» stays open across boards on this device (10.F5).
+  const [chart, setChart] = useState(chartWanted)
+  function toggleChart() {
+    const next = !chart
+    setChart(next)
+    try {
+      localStorage.setItem(CHART_KEY, next ? '1' : '0')
+    } catch {
+      // private mode: the choice lasts until the page is left
+    }
+  }
 
   const progress = useMemo(
     () =>
@@ -173,6 +200,17 @@ export function ScopeBanner({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            size="sm"
+            variant={chart ? 'secondary' : 'ghost'}
+            className="px-2 xl:px-3"
+            title={t('График сгорания')}
+            aria-expanded={chart}
+            onClick={toggleChart}
+          >
+            <TrendingDown size={14} />
+            <span className="hidden xl:inline">{t('График')}</span>
+          </Button>
           {!readOnly && (
             <Button
               size="sm"
@@ -226,6 +264,21 @@ export function ScopeBanner({
           </Button>
         </div>
       </div>
+
+      {chart && (
+        <div className="mt-2 rounded-lg border border-border bg-card p-3">
+          <Suspense fallback={<Skeleton className="h-56 w-full" />}>
+            <BurndownChart
+              kind={kind}
+              slug={slug}
+              projectId={projectId}
+              id={id}
+              // The board's live counts: a moved or added card redraws the chart.
+              version={`${progress.total}:${progress.completed + progress.cancelled}`}
+            />
+          </Suspense>
+        </div>
+      )}
 
       {!readOnly && (
         <AddIssuesDialog

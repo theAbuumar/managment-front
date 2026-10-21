@@ -295,7 +295,11 @@ export function HomePage() {
                               ? navigate(
                                   `/projects/${n.issue.project_id}/work-items?issue=${n.issue.id}`,
                                 )
-                              : navigate('/notifications')
+                              : navigate(
+                                  n.type === 'report_ready'
+                                    ? '/settings/reports'
+                                    : '/notifications',
+                                )
                           }
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50"
                         >

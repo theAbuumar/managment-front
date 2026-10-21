@@ -16,7 +16,11 @@ import {
   UserPlus,
   type LucideIcon,
 } from 'lucide-react'
-import type { AppNotification, NotificationType } from '@/api/notification'
+import {
+  isReportReady,
+  type AppNotification,
+  type NotificationType,
+} from '@/api/notification'
 import { shortDate } from '@/lib/dates'
 import { t as translate } from '@/i18n'
 
@@ -31,6 +35,13 @@ export interface TypeMeta {
   /** System events (reminders) have a stand-in actor, so no name is shown. */
   system?: boolean
   text: (n: AppNotification, name: string) => string
+}
+
+/** "2026-10-12", "2026-10-18" → «12.10–18.10.2026». */
+function reportPeriodText(from: string, to: string): string {
+  const [, fm, fd] = from.split('-')
+  const [ty, tm, td] = to.split('-')
+  return from === to ? `${td}.${tm}.${ty}` : `${fd}.${fm}–${td}.${tm}.${ty}`
 }
 
 export const TONES: Record<Tone, string> = {
@@ -124,7 +135,7 @@ export const TYPE_META: Record<NotificationType, TypeMeta> = {
     icon: CalendarClock,
     tone: 'blue',
     text: (n, name) =>
-      !n.details
+      !n.details || isReportReady(n.details)
         ? translate('{{name}} рассмотрел(а) запрос на перенос срока', { name })
         : n.details.approved
           ? translate('{{name}} одобрил(а) перенос срока на {{date}}', {
@@ -143,7 +154,26 @@ export const TYPE_META: Record<NotificationType, TypeMeta> = {
     icon: FileBarChart,
     tone: 'green',
     system: true,
-    text: () => translate('Отчёт сформирован'),
+    text: (n) => {
+      const d = n.details
+      if (!isReportReady(d)) return translate('Плановый отчёт сформирован')
+      const period = reportPeriodText(d.period_from, d.period_to)
+      if (d.name)
+        return translate('Готов отчёт «{{name}}» за {{period}}', {
+          name: d.name,
+          period,
+        })
+      return {
+        discipline: translate(
+          'Готова справка об исполнении поручений за {{period}}',
+          { period },
+        ),
+        assignments: translate('Готов реестр поручений за {{period}}', {
+          period,
+        }),
+        project: translate('Готов отчёт по проекту за {{period}}', { period }),
+      }[d.report]
+    },
   },
   digest: {
     icon: Bell,

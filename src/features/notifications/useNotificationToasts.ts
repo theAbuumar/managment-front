@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   getNotifications,
+  isReportReady,
   markNotificationRead,
   type AppNotification,
 } from '@/api/notification'
+import { downloadReportRun } from '@/api/reportSchedules'
 import { useRealtime } from '@/lib/realtime'
 import { shortName } from '@/lib/people'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
@@ -64,25 +66,39 @@ export function useNotificationToasts() {
     const key = issue
       ? `${issue.project.identifier}-${issue.sequence_id}`
       : null
+    const markRead = () =>
+      void markNotificationRead(slug, n.id)
+        .then(() => {
+          const store = useNotificationStore.getState()
+          store.setUnreadCount(Math.max(0, store.unreadCount - 1))
+        })
+        .catch(() => {})
+    const report = isReportReady(n.details) ? n.details : null
     toast(title, {
       description: issue ? `${key} · ${issue.title}` : undefined,
       duration: 8000,
-      action: issue
+      action: report
         ? {
-            label: t('Открыть'),
+            // A planned report (10.F7): the file at once.
+            label: t('Скачать'),
             onClick: () => {
-              void markNotificationRead(slug, n.id)
-                .then(() => {
-                  const store = useNotificationStore.getState()
-                  store.setUnreadCount(Math.max(0, store.unreadCount - 1))
-                })
-                .catch(() => {})
-              navigate(
-                `/projects/${issue.project_id}/work-items?issue=${issue.id}`,
+              markRead()
+              void downloadReportRun(slug, report.run_id).catch(() =>
+                navigate('/settings/reports'),
               )
             },
           }
-        : undefined,
+        : issue
+          ? {
+              label: t('Открыть'),
+              onClick: () => {
+                markRead()
+                navigate(
+                  `/projects/${issue.project_id}/work-items?issue=${issue.id}`,
+                )
+              },
+            }
+          : undefined,
     })
   }
 

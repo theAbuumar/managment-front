@@ -37,6 +37,10 @@ const ControlSettingsPage = lazyPage(
   () => import('@/features/settings/ControlSettingsPage'),
   'ControlSettingsPage',
 )
+const ReportSchedulesPage = lazyPage(
+  () => import('@/features/reports/ReportSchedulesPage'),
+  'ReportSchedulesPage',
+)
 const AuditLogPage = lazyPage(
   () => import('@/features/settings/AuditLogPage'),
   'AuditLogPage',
@@ -166,6 +170,8 @@ export const router = createBrowserRouter([
           { path: 'structure', element: <OrgStructurePage /> },
           { path: 'control', element: <ControlSettingsPage /> },
           { path: 'templates', element: <WorkspaceTemplatesPage /> },
+          // Planned reports (10.F7): everyone's own, all of them for an admin.
+          { path: 'reports', element: <ReportSchedulesPage /> },
           { path: 'audit', element: <AuditLogPage /> },
         ],
       },

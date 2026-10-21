@@ -43,7 +43,8 @@ import { IssueDetailPanel } from './IssueDetailPanel'
 import { SubmitReviewDialog } from './control/ControlDialogs'
 import { FilterPanel } from '@/features/views/FilterPanel'
 import { ScopeBanner } from '@/features/cycles/ScopeBanner'
-import { joinScope, useProjectScopes, type Scope, type ScopeKind } from '@/features/cycles/scopes'
+import { joinScope, progressOf, useProjectScopes, type Scope, type ScopeKind } from '@/features/cycles/scopes'
+import { ScopeProgress } from '@/features/cycles/ScopeProgress'
 import { ViewsMenu } from '@/features/views/ViewsMenu'
 import {
   BOARD_KEYS,
@@ -391,6 +392,9 @@ export function WorkItemsPage() {
     if (all) setIssues(all)
   }
 
+  // Progress of the whole project in the header (10.F5), live with the board.
+  const projectProgress = useMemo(() => progressOf(issues, states), [issues, states])
+
   // What a saved view of this page would hold (7.F5).
   const viewFilters = boardFilterValues(filters)
   const filterChips = describeFilters(viewFilters, {
@@ -532,6 +536,9 @@ export function WorkItemsPage() {
         <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
           {issues.length}
         </span>
+        {!loading && !error && projectProgress.total > 0 && (
+          <ScopeProgress progress={projectProgress} compact className="hidden md:flex" />
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {/* View switcher */}

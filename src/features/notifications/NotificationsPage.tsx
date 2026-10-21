@@ -16,9 +16,11 @@ import {
   markNotificationRead,
   markNotificationUnread,
   markAllNotificationsRead,
+  isReportReady,
   type AppNotification,
   type NotificationType,
 } from '@/api/notification'
+import { downloadReportRun } from '@/api/reportSchedules'
 import { TONES, TYPE_META } from './notificationMeta'
 import { errorText } from '@/lib/errorMessages'
 import { shortName } from '@/lib/people'
@@ -32,7 +34,7 @@ import { t as translate } from '@/i18n'
 const PAGE_SIZE = 30
 
 // Topic filter — groups of types.
-type Topic = 'all' | 'assign' | 'review' | 'deadlines' | 'comments'
+type Topic = 'all' | 'assign' | 'review' | 'deadlines' | 'comments' | 'reports'
 const TOPICS: { key: Topic; label: () => string; types?: NotificationType[] }[] = [
   { key: 'all', label: () => translate('Все') },
   { key: 'assign', label: () => translate('Назначения'), types: ['issue_assigned', 'acknowledged', 'state_changed'] },
@@ -43,6 +45,7 @@ const TOPICS: { key: Topic; label: () => string; types?: NotificationType[] }[] 
     types: ['due_soon', 'overdue', 'escalated', 'deadline_change_requested', 'deadline_change_decided'],
   },
   { key: 'comments', label: () => translate('Комментарии'), types: ['comment_added', 'mentioned'] },
+  { key: 'reports', label: () => translate('Отчёты'), types: ['report_ready'] },
 ]
 
 /** Consecutive events of one type on one task collapse into a single row. */
@@ -267,8 +270,15 @@ export function NotificationsPage() {
   function open(group: Group) {
     void markGroup(group, true)
     const issue = group.head.issue
+    const details = group.head.details
     if (issue) navigate(`/projects/${issue.project_id}/work-items?issue=${issue.id}`)
     else if (group.head.type === 'invite_received') navigate('/invitations')
+    // A planned report (10.F7): the file itself; a sending gone from the history — the list.
+    else if (group.head.type === 'report_ready') {
+      if (slug && isReportReady(details))
+        downloadReportRun(slug, details.run_id).catch(() => navigate('/settings/reports'))
+      else navigate('/settings/reports')
+    }
   }
 
   async function readAll() {

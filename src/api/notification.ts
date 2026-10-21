@@ -55,9 +55,28 @@ export interface AppNotification {
   created_at: string
   actor: NotificationActor
   issue?: NotificationIssue | null
-  /** Only on deadline_change_decided. */
-  details?: { approved: boolean; new_due_date: string } | null
+  /** deadline_change_decided: the decision; report_ready: the sending of a planned report. */
+  details?: DeadlineDecision | ReportReady | null
 }
+
+export interface DeadlineDecision {
+  approved: boolean
+  new_due_date: string
+}
+
+/** «Отчёт готов» (10.B5): what to call it and which sending to download. */
+export interface ReportReady {
+  run_id: string
+  schedule_id: string
+  report: 'discipline' | 'assignments' | 'project'
+  name: string | null
+  period_from: string
+  period_to: string
+  file_name: string | null
+}
+
+export const isReportReady = (d: AppNotification['details']): d is ReportReady =>
+  !!d && 'run_id' in d
 
 export interface NotificationPage {
   data: AppNotification[]

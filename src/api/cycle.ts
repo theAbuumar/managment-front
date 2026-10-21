@@ -97,3 +97,40 @@ export const removeIssueFromCycle = (
   client.delete<unknown, void>(
     `${base(slug, projectId)}/${cycleId}/issues/${issueId}`,
   )
+
+// ─── Burndown (10.B7, ADR-032) ────────────────────────────────────────────────
+
+/** One day of the chart; actual values are null after today. */
+export interface BurndownDay {
+  date: string
+  scope: number | null
+  done: number | null
+  remaining: number | null
+  /** From the first day's scope to zero on the last day; null without both dates. */
+  ideal: number | null
+}
+
+/** By day in the workspace zone, rebuilt on the server from the issue history. */
+export interface Burndown {
+  kind: 'cycle' | 'module'
+  id: string
+  name: string
+  from: string
+  to: string
+  today: string
+  has_ideal: boolean
+  current: {
+    scope: number
+    done: number
+    remaining: number
+    completion_percentage: number
+  }
+  days: BurndownDay[]
+}
+
+export const getCycleBurndown = (
+  slug: string,
+  projectId: string,
+  cycleId: string,
+) =>
+  client.get<unknown, Burndown>(`${base(slug, projectId)}/${cycleId}/burndown`)

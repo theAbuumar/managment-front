@@ -51,7 +51,9 @@ import { shortDate } from '@/lib/dates'
 import { BarList, ChartCard, DataTable, StatTile } from './charts'
 import { CompletedTrend, DisciplineTrend } from './trend-charts'
 import { AiMemoDialog } from '@/features/ai/AiMemoDialog'
+import { ReportScheduleDialog } from '@/features/reports/ReportScheduleDialog'
 import { useAiEnabled } from '@/stores/aiStore'
+import { useReadOnly } from '@/stores/summaryStore'
 import {
   bucketLabel,
   delta,
@@ -158,6 +160,9 @@ export function AnalyticsPage() {
   // «Сформировать записку» (Ф11 11.F4), only while AI is on.
   const aiEnabled = useAiEnabled()
   const [memoOpen, setMemoOpen] = useState(false)
+  // «По расписанию» (10.F7): a planned report with the page's filters.
+  const readOnly = useReadOnly()
+  const [planOpen, setPlanOpen] = useState(false)
   const key = JSON.stringify(filters)
   const loading = loadedKey !== key
 
@@ -299,6 +304,18 @@ export function AnalyticsPage() {
               {exporting === 'xlsx' ? t('Формируем…') : t('Реестр Excel')}
             </span>
           </Button>
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPlanOpen(true)}
+              disabled={!data}
+              title={t('Получать справку по расписанию в Telegram и на почту')}
+            >
+              <CalendarClock size={14} />
+              <span className="hidden sm:inline">{t('По расписанию')}</span>
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -546,6 +563,24 @@ export function AnalyticsPage() {
           onOpenChange={setMemoOpen}
           slug={slug}
           filters={filters}
+        />
+      )}
+      {slug && planOpen && (
+        <ReportScheduleDialog
+          open={planOpen}
+          onOpenChange={setPlanOpen}
+          slug={slug}
+          item={null}
+          draft={{
+            report: 'discipline',
+            filters: {
+              ...(filters.department && { department: [filters.department] }),
+              ...(filters.project && { project: [filters.project] }),
+              ...(filters.kind && { kind: filters.kind }),
+            },
+          }}
+          onSaved={() => undefined}
+          listLink
         />
       )}
     </div>

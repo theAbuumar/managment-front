@@ -63,6 +63,10 @@ const ACTIONS: Record<string, () => string> = {
   'project.purged': () => translate('Проект удалён навсегда'),
   'attachment.deleted': () => translate('Удалён файл'),
   'report.exported': () => translate('Выгружен отчёт'),
+  'report.sent': () => translate('Отправлен плановый отчёт'),
+  'report_schedule.created': () => translate('Создан плановый отчёт'),
+  'report_schedule.updated': () => translate('Изменён плановый отчёт'),
+  'report_schedule.deleted': () => translate('Удалён плановый отчёт'),
   'user.data_exported': () => translate('Сотрудник выгрузил свои данные'),
   'workspace.updated': () => translate('Изменены настройки пространства'),
   'workspace.deleted': () => translate('Пространство удалено'),
@@ -96,7 +100,16 @@ const REPORTS: Record<string, () => string> = {
   'assignments.xlsx': () => translate('Реестр поручений (Excel)'),
   'discipline.pdf': () =>
     translate('Справка об исполнительской дисциплине (PDF)'),
+  'project.pdf': () => translate('Отчёт по проекту (PDF)'),
+  // Planned reports (10.B5) name the document by its kind.
+  assignments: () => translate('Реестр поручений (Excel)'),
+  discipline: () => translate('Справка об исполнении поручений (PDF)'),
+  project: () => translate('Отчёт по проекту (PDF)'),
 }
+
+/** "2026-10-12" → «12.10.2026». */
+const ruDate = (d: unknown) =>
+  typeof d === 'string' ? d.split('-').reverse().join('.') : ''
 
 /** «строк: 24 · приглашено: 18 · …» of a staff import (4.F12); zero counts are left out. */
 function importCounts(meta: Record<string, unknown>): string[] {
@@ -160,9 +173,22 @@ function details(e: AuditEntry): string {
   if (e.action.endsWith('.purged') && meta.auto === true) {
     parts.push(translate('автоматически: 30 дней в корзине'))
   }
-  if (e.action === 'report.exported' && typeof meta.report === 'string') {
+  if (
+    (e.action === 'report.exported' || e.action === 'report.sent') &&
+    typeof meta.report === 'string'
+  ) {
     const name = REPORTS[meta.report]?.() ?? meta.report
     parts.push(name)
+  }
+  // A planned report (10.B5): its period, how many got it, sent by hand.
+  if (e.action === 'report.sent' || meta.planned === true) {
+    if (typeof meta.from === 'string')
+      parts.push(`${ruDate(meta.from)}–${ruDate(meta.to)}`)
+    if (typeof meta.recipients === 'number')
+      parts.push(translate('получателей: {{n}}', { n: meta.recipients }))
+    if (meta.manual === true) parts.push(translate('«Отправить сейчас»'))
+    if (meta.planned === true)
+      parts.push(translate('из истории планового отчёта'))
   }
   return parts.join(' · ')
 }
