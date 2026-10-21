@@ -136,8 +136,8 @@ export function CreateWorkspacePage() {
                     {t('Идентификатор для адресов')}{' '}
                     <span className="text-red-500">*</span>
                   </FormLabel>
-                  <FormControl>
-                    <div className="flex items-center overflow-hidden rounded-md border border-border focus-within:ring-1 focus-within:ring-ring">
+                  <div className="flex items-center overflow-hidden rounded-md border border-border focus-within:ring-1 focus-within:ring-ring">
+                    <FormControl>
                       <input
                         placeholder="rektorat"
                         {...field}
@@ -150,8 +150,8 @@ export function CreateWorkspacePage() {
                         }
                         className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
                       />
-                    </div>
-                  </FormControl>
+                    </FormControl>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {t('Латиница, цифры и дефис. Заполняется из названия автоматически.')}
                   </p>

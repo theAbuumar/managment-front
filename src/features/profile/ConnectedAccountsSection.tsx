@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Mail } from 'lucide-react'
+import { Landmark, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,13 +24,14 @@ import { t as translate } from '@/i18n'
 
 type Provider = Identity['provider']
 
-const ORDER: Provider[] = ['email', 'google', 'github', 'telegram']
+const ORDER: Provider[] = ['email', 'ldap', 'google', 'github', 'telegram']
 
 const NAMES: Record<Provider, () => string> = {
   email: () => translate('Почта'),
   google: () => 'Google',
   github: () => 'GitHub',
   telegram: () => 'Telegram',
+  ldap: () => translate('Учётная запись университета'),
 }
 
 const ICONS: Record<Provider, React.ReactNode> = {
@@ -38,6 +39,7 @@ const ICONS: Record<Provider, React.ReactNode> = {
   google: <GoogleIcon />,
   github: <GithubIcon />,
   telegram: <TelegramIcon />,
+  ldap: <Landmark size={16} className="text-muted-foreground" />,
 }
 
 /** Text for the `#link_error=<code>` the provider callback returns with (ADR-025). */
@@ -53,7 +55,7 @@ function linkErrorText(code: string): string {
 }
 
 // Profile → «Привязанные аккаунты» (4.F9): every way into the account — email code,
-// Google, GitHub, Telegram. Google and GitHub link through the provider's consent page
+// the university account (shown once used), Google, GitHub, Telegram. Google and GitHub link through the provider's consent page
 // (ADR-025) and come back here; Telegram links through the bot (13.P5). A method the
 // server doesn't offer is shown only if it is already linked, and the last remaining
 // one can't be removed.
@@ -103,7 +105,9 @@ export function ConnectedAccountsSection() {
   if (!providers || !identities) return null
 
   const linkedOf = (p: Provider) => identities.find((i) => i.provider === p)
-  const offered = (p: Provider) => p !== 'email' && providers[p]
+  // The university account links itself on the first sign-in with it (12.B10).
+  const offered = (p: Provider) =>
+    p !== 'email' && p !== 'ldap' && Boolean(providers[p])
   const rows = ORDER.filter((p) => linkedOf(p) || offered(p))
   if (rows.length === 0) return null
   // The server refuses to remove the last sign-in method; say so up front.

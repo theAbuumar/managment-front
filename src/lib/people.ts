@@ -46,7 +46,8 @@ export function initials(p: PersonLike | null | undefined): string {
   return (words.length >= 2 ? `${words[0]![0]}${words[1]![0]}` : words[0]!.slice(0, 2)).toUpperCase()
 }
 
-const PALETTE = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
+// Deep enough for white initials to read (contrast ≥ 4.5:1, 12.F3).
+const PALETTE = ['#4f46e5', '#0369a1', '#047857', '#b45309', '#dc2626', '#7c3aed', '#db2777', '#0f766e']
 
 /** Stable avatar colour per user id. */
 export function avatarColor(id: string | null | undefined): string {

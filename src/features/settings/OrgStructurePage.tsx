@@ -360,9 +360,11 @@ function TreeNode({
             e.stopPropagation()
             if (hasChildren) onToggle(node.id)
           }}
-          className={cn('flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground', hasChildren ? 'hover:bg-accent' : 'invisible')}
+          aria-label={open ? t('Свернуть «{{name}}»', { name: node.name }) : t('Развернуть «{{name}}»', { name: node.name })}
+          aria-expanded={hasChildren ? open : undefined}
+          className={cn('flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground', hasChildren ? 'hover:bg-accent' : 'invisible')}
         >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
         </button>
         <span className={cn('min-w-0 flex-1 truncate', active && 'font-medium text-primary')} title={node.name}>
           {node.name}
@@ -544,17 +546,17 @@ function DepartmentDetails({
       {/* Properties */}
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{t('Название')}</Label>
-          <Input value={name} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
+          <Label htmlFor="dept-name" className="text-xs text-muted-foreground">{t('Название')}</Label>
+          <Input id="dept-name" value={name} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{t('Краткое')}</Label>
-          <Input value={short} disabled={!canEdit} placeholder="ФМФ" onChange={(e) => setShort(e.target.value)} />
+          <Label htmlFor="dept-short" className="text-xs text-muted-foreground">{t('Краткое')}</Label>
+          <Input id="dept-short" value={short} disabled={!canEdit} placeholder="ФМФ" onChange={(e) => setShort(e.target.value)} />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs text-muted-foreground">{t('Вышестоящее подразделение')}</Label>
+          <Label htmlFor="dept-parent" className="text-xs text-muted-foreground">{t('Вышестоящее подразделение')}</Label>
           <Select value={parent} onValueChange={setParent} disabled={!canEdit}>
-            <SelectTrigger>
+            <SelectTrigger id="dept-parent">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-80">
@@ -568,9 +570,9 @@ function DepartmentDetails({
           </Select>
         </div>
         <div className="space-y-1.5 sm:col-span-2">
-          <Label className="text-xs text-muted-foreground">{t('Руководитель')}</Label>
+          <Label htmlFor="dept-head" className="text-xs text-muted-foreground">{t('Руководитель')}</Label>
           <Select value={head} onValueChange={setHead} disabled={!canEdit}>
-            <SelectTrigger>
+            <SelectTrigger id="dept-head">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-80">
@@ -806,8 +808,9 @@ function CreateDepartmentDialog({
         )}
         <div className="grid grid-cols-[1fr_120px] gap-3 py-1">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t('Название')}</Label>
+            <Label htmlFor="new-dept-name" className="text-xs text-muted-foreground">{t('Название')}</Label>
             <Input
+              id="new-dept-name"
               autoFocus
               value={name}
               placeholder={t('Кафедра информатики')}
@@ -816,8 +819,8 @@ function CreateDepartmentDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{t('Краткое')}</Label>
-            <Input value={short} placeholder="КИ" onChange={(e) => setShort(e.target.value)} />
+            <Label htmlFor="new-dept-short" className="text-xs text-muted-foreground">{t('Краткое')}</Label>
+            <Input id="new-dept-short" value={short} placeholder="КИ" onChange={(e) => setShort(e.target.value)} />
           </div>
         </div>
         <DialogFooter>

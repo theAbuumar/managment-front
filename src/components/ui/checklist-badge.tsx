@@ -71,13 +71,13 @@ export function BlockedMark({
   return (
     <span
       title={text}
-      aria-label={text}
       className={cn(
-        'flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400',
+        'flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400',
         className,
       )}
     >
-      <AlertTriangle size={12} />
+      <AlertTriangle size={12} aria-hidden />
+      <span className="sr-only">{text}</span>
     </span>
   )
 }

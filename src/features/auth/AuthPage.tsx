@@ -16,9 +16,13 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
+import { PasswordInput } from '@/components/ui/password-input'
+import { ApiError } from '@/api/client'
 import {
   requestEmailCode,
   verifyEmailCode,
+  passwordLogin,
+  ldapLogin,
   telegramInit,
   telegramStatus,
   OAUTH_URLS,
@@ -53,6 +57,17 @@ const registerSchema = z.object({
 const codeSchema = z.object({
   code: z.string().regex(/^\d{6}$/, t('Введите 6-значный код')),
 })
+const passwordSchema = z.object({
+  email: z.string().email(t('Введите корректный email')),
+  password: z.string().min(1, t('Введите пароль')),
+})
+const ldapSchema = z.object({
+  login: z.string().trim().min(1, t('Введите логин')),
+  password: z.string().min(1, t('Введите пароль')),
+})
+
+/** How to sign in on the «Вход» tab: a code by email, a password (12.F6) or LDAP (12.B10). */
+type LoginMethod = 'code' | 'password' | 'ldap'
 
 function ProviderButton({
   icon,
@@ -117,6 +132,13 @@ function AuthForm({
 
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [pendingName, setPendingName] = useState<string | undefined>()
+  // A password is set in the profile after a code sign-in, so it needs email codes;
+  // the university account needs only the directory.
+  const methods: LoginMethod[] = [
+    ...(available.email ? (['code', 'password'] as const) : []),
+    ...(available.ldap ? (['ldap'] as const) : []),
+  ]
+  const [method, setMethod] = useState<LoginMethod>(methods[0] ?? 'code')
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -129,6 +151,14 @@ function AuthForm({
   const codeForm = useForm<z.infer<typeof codeSchema>>({
     resolver: zodResolver(codeSchema),
     defaultValues: { code: '' },
+  })
+  const passwordForm = useForm<z.infer<typeof passwordSchema>>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { email: params.get('email') ?? '', password: '' },
+  })
+  const ldapForm = useForm<z.infer<typeof ldapSchema>>({
+    resolver: zodResolver(ldapSchema),
+    defaultValues: { login: '', password: '' },
   })
 
   // Shared post-login: store session, load workspaces, route.
@@ -178,6 +208,55 @@ function AuthForm({
     } catch (err) {
       toast.error(errorText(err, t('Не удалось отправить код')))
     }
+  }
+
+  async function signInWithPassword({
+    email,
+    password,
+  }: z.infer<typeof passwordSchema>) {
+    try {
+      const result = await passwordLogin(email, password)
+      await finishAuth(result.user, result.access_token)
+    } catch (err) {
+      passwordForm.setValue('password', '')
+      toast.error(errorText(err, t('Не удалось войти')))
+    }
+  }
+
+  async function signInWithDirectory({
+    login,
+    password,
+  }: z.infer<typeof ldapSchema>) {
+    try {
+      const result = await ldapLogin(login, password)
+      await finishAuth(result.user, result.access_token)
+    } catch (err) {
+      ldapForm.setValue('password', '')
+      toast.error(
+        err instanceof ApiError && err.code === 'INVALID_CREDENTIALS'
+          ? t('Неверный логин или пароль.')
+          : errorText(err, t('Не удалось войти')),
+      )
+    }
+  }
+
+  /** Another way to sign in keeps the email already typed. */
+  function switchMethod(next: LoginMethod) {
+    const email =
+      method === 'password'
+        ? passwordForm.getValues('email')
+        : loginForm.getValues('email')
+    if (email) {
+      loginForm.setValue('email', email)
+      passwordForm.setValue('email', email)
+    }
+    setMethod(next)
+  }
+
+  /** «Забыли пароль?» — sign in by a code; a new password is set in the profile. */
+  function forgotPassword() {
+    switchMethod('code')
+    toast.info(t('Войдите по коду на почту и задайте новый пароль в профиле'))
   }
 
   async function verifyCode({ code }: z.infer<typeof codeSchema>) {
@@ -296,22 +375,189 @@ function AuthForm({
   const divider = (
     <div className="flex items-center gap-3">
       <div className="h-px flex-1 bg-border" />
-      <span className="text-xs text-muted-foreground">{t('или по email')}</span>
+      <span className="text-xs text-muted-foreground">
+        {available.email ? t('или по email') : t('или')}
+      </span>
       <div className="h-px flex-1 bg-border" />
     </div>
   )
 
-  if (!available.email) {
+  if (!available.email && !available.ldap) {
     return <div className="flex flex-col gap-4">{providers}</div>
   }
+
+  const methodNames: Record<LoginMethod, string> = {
+    code: t('Код на почту'),
+    password: t('Пароль'),
+    ldap: available.ldap_label || t('Учётная запись университета'),
+  }
+  const switcher = mode === 'login' && methods.length > 1 && (
+    <div
+      role="radiogroup"
+      aria-label={t('Способ входа')}
+      className="grid gap-1 rounded-lg bg-muted p-1"
+      style={{
+        gridTemplateColumns: `repeat(${methods.length}, minmax(0, 1fr))`,
+      }}
+    >
+      {methods.map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={method === m}
+          onClick={() => switchMethod(m)}
+          className={
+            'rounded-md px-2 py-1.5 text-xs leading-tight font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ' +
+            (method === m
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          {methodNames[m]}
+        </button>
+      ))}
+    </div>
+  )
+
+  // Each method's form has its own key: the email fields of two forms sit in the
+  // same place, and a reused field would stay bound to the other form.
+  const passwordLoginForm = (
+    <Form key="password" {...passwordForm}>
+      <form
+        onSubmit={passwordForm.handleSubmit(signInWithPassword)}
+        className="flex flex-col gap-4"
+      >
+        <FormField
+          control={passwordForm.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Email')}</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  autoComplete="username"
+                  placeholder="ivanov@university.edu"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={passwordForm.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <div className="flex items-baseline justify-between">
+                <FormLabel>{t('Пароль')}</FormLabel>
+                <button
+                  type="button"
+                  onClick={forgotPassword}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {t('Забыли пароль?')}
+                </button>
+              </div>
+              <FormControl>
+                <PasswordInput autoComplete="current-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={passwordForm.formState.isSubmitting}
+        >
+          {passwordForm.formState.isSubmitting ? t('Входим…') : t('Войти')}
+        </Button>
+      </form>
+    </Form>
+  )
+
+  const ldapLoginForm = (
+    <Form key="ldap" {...ldapForm}>
+      <form
+        onSubmit={ldapForm.handleSubmit(signInWithDirectory)}
+        className="flex flex-col gap-4"
+      >
+        <FormField
+          control={ldapForm.control}
+          name="login"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Логин')}</FormLabel>
+              <FormControl>
+                <Input
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="ivanov"
+                  {...field}
+                />
+              </FormControl>
+              {available.ldap_hint && (
+                <p className="text-xs text-muted-foreground">
+                  {available.ldap_hint}
+                </p>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={ldapForm.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Пароль')}</FormLabel>
+              <FormControl>
+                <PasswordInput autoComplete="current-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={ldapForm.formState.isSubmitting}
+        >
+          {ldapForm.formState.isSubmitting ? t('Входим…') : t('Войти')}
+        </Button>
+      </form>
+    </Form>
+  )
+
+  const notes: Record<LoginMethod, string> = {
+    code: t(
+      'Вход без пароля: мы отправим одноразовый код на почту. Ваши данные используются только для работы системы.',
+    ),
+    password: t(
+      'Пароль задаётся в профиле после входа по коду. Основной вход — по коду на почту.',
+    ),
+    ldap: t(
+      'Логин и пароль проверяет каталог университета — система пароль не хранит.',
+    ),
+  }
+  const shown: LoginMethod = mode === 'login' ? method : 'code'
 
   return (
     <div className="flex flex-col gap-4">
       {providers}
       {hasProviders && divider}
+      {switcher}
 
-      {mode === 'login' ? (
-        <Form {...loginForm}>
+      {mode === 'login' && method === 'password' ? (
+        passwordLoginForm
+      ) : mode === 'login' && method === 'ldap' ? (
+        ldapLoginForm
+      ) : mode === 'login' ? (
+        <Form key="code" {...loginForm}>
           <form
             onSubmit={loginForm.handleSubmit(({ email }) => sendCode(email))}
             className="flex flex-col gap-4"
@@ -402,9 +648,7 @@ function AuthForm({
       )}
 
       <p className="text-center text-xs text-muted-foreground">
-        {t(
-          'Вход без пароля: мы отправим одноразовый код на почту. Ваши данные используются только для работы системы.',
-        )}
+        {notes[shown]}
       </p>
     </div>
   )
@@ -529,7 +773,10 @@ export function AuthPage() {
                 <AuthForm mode="register" available={available} />
               </TabsContent>
             </Tabs>
-          ) : available.google || available.github || available.telegram ? (
+          ) : available.google ||
+            available.github ||
+            available.telegram ||
+            available.ldap ? (
             // Without email codes the providers both sign in and sign up.
             <AuthForm mode="login" available={available} />
           ) : (

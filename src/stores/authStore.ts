@@ -12,6 +12,9 @@ export interface AuthUser {
   phone?: string | null
   locale?: string
   timezone?: string | null
+  /** A password is set (12.B12) and when; the hash never leaves the server. */
+  has_password?: boolean
+  password_changed_at?: string | null
 }
 
 interface AuthState {

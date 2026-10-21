@@ -15,6 +15,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { ColorChip } from '@/components/ui/color-chip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PersonAvatar } from '@/components/ui/person-avatar'
@@ -181,13 +182,17 @@ function ProjectCard({ project: p, onOpen, onSettings }: { project: Project; onO
         <div className="absolute right-3 top-3 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {p.visibility === 'private' && (
             <span title={t('Приватный проект')} className="rounded-md bg-card/80 p-1 text-muted-foreground">
-              <Lock size={13} />
+              <Lock size={13} aria-hidden />
+              <span className="sr-only">{t('Приватный проект')}</span>
             </span>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="rounded-md bg-card/80 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus:opacity-100">
-                <MoreHorizontal size={15} />
+              <button
+                aria-label={t('Действия с проектом')}
+                className="rounded-md bg-card/80 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+              >
+                <MoreHorizontal size={15} aria-hidden />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
@@ -211,9 +216,9 @@ function ProjectCard({ project: p, onOpen, onSettings }: { project: Project; onO
             <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{p.identifier}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="rounded-full px-2 py-0.5 font-medium" style={{ background: `${status.color}1f`, color: status.color }}>
+            <ColorChip color={status.color} className="font-medium">
               {status.label()}
-            </span>
+            </ColorChip>
             {p.department && (
               <span className="flex items-center gap-1 text-muted-foreground">
                 <Building2 size={12} />

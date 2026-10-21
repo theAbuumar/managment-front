@@ -304,9 +304,10 @@ export function IssueCard({
             <button
               type="button"
               onClick={(e) => e.stopPropagation()}
+              aria-label={t('Действия с задачей')}
               className="ml-auto rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 focus:opacity-100"
             >
-              <MoreHorizontal size={15} />
+              <MoreHorizontal size={15} aria-hidden />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

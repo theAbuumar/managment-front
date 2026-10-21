@@ -48,6 +48,7 @@ import {
   type Scope,
   type ScopeKind,
 } from './scopes'
+import { ColorChip } from '@/components/ui/color-chip'
 
 interface Section {
   title: string
@@ -405,12 +406,12 @@ function ScopeRow({
             >
               {item.name}
             </Link>
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
-              style={{ background: `${status.color}1f`, color: status.color }}
+            <ColorChip
+              color={status.color}
+              className="shrink-0 text-[11px] font-medium"
             >
               {status.label}
-            </span>
+            </ColorChip>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {range && (

@@ -30,11 +30,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { errorText } from '@/lib/errorMessages'
 import { browserTimeZone } from '@/lib/timezones'
 import { LANGUAGES } from '@/i18n'
+import { TransferOwnershipDialog } from './TransferOwnershipDialog'
 
 // Workspace settings → General (Ф3 3.F2): logo, name, short name, description,
 // time zone (deadlines and reminders are computed in it) and default language.
 // Editing is for the owner and admins (PATCH /workspaces/:slug is admin+);
-// everyone else sees the same page read-only.
+// everyone else sees the same page read-only. The owner may hand the workspace
+// over (12.B3) and then leave it like anyone else.
 
 const LIMITS = { name: 100, short_name: 30, description: 1000 }
 
@@ -75,6 +77,7 @@ export function GeneralPage() {
   const [logoOpen, setLogoOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   // Reseed after a save or a workspace switch.
   if (seedKey !== initialKey) {
@@ -347,6 +350,16 @@ export function GeneralPage() {
           </div>
         )}
 
+        {isOwner && (
+          <DangerRow
+            title={t('Передать владение')}
+            text={t(
+              'Другой сотрудник станет владельцем пространства, а вы — администратором. Подтверждается кодом.',
+            )}
+            action={t('Передать')}
+            onClick={() => setTransferOpen(true)}
+          />
+        )}
         {isOwner ? (
           <DangerRow
             title={t('Удалить пространство')}
@@ -388,6 +401,20 @@ export function GeneralPage() {
         cancelLabel={t('Отмена')}
         onConfirm={remove}
       />
+
+      {isOwner && workspace && userId && (
+        <TransferOwnershipDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          workspace={workspace}
+          userId={userId}
+          onDone={(updated) => {
+            // The owner is someone else now; this page shows «Покинуть».
+            applyUpdated({ ...workspace, ...updated })
+            setRole('admin')
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={leaveOpen}

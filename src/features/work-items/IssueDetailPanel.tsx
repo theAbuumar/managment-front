@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ColorChip } from '@/components/ui/color-chip'
 import { Link } from 'react-router-dom'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
@@ -444,16 +445,13 @@ export function IssueDetailPanel({
               {t('Поручение')}
             </span>
           )}
-          <span
-            className="ml-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs"
-            style={{
-              background: `${currentState?.color ?? '#94a3b8'}22`,
-              color: currentState?.color ?? undefined,
-            }}
+          <ColorChip
+            color={currentState?.color ?? '#94a3b8'}
+            className="ml-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs"
           >
             <span className="size-2 rounded-full" style={{ background: currentState?.color ?? '#94a3b8' }} />
             {currentState?.name ?? '—'}
-          </span>
+          </ColorChip>
           <DeadlineBadge dueDate={issue.due_date} group={group} completedAt={issue.completed_at} variant="full" />
           {blockers > 0 && (
             <span

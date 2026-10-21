@@ -46,6 +46,7 @@ import { NotificationPrefsSection } from './NotificationPrefsSection'
 import { NotificationChannelsSection } from './NotificationChannelsSection'
 import { SessionsSection } from './SessionsSection'
 import { MyDataSection } from './MyDataSection'
+import { PasswordSection } from './PasswordSection'
 
 // Profile page (Ф3 3.F1): ФИО, phone, language, time zone and avatar. Position and
 // department belong to the workspace's org structure and are set by an admin, so
@@ -96,6 +97,7 @@ export function ProfilePage() {
   const [member, setMember] = useState<WorkspaceMember | null>(null)
   const [cropOpen, setCropOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [sessionsKey, setSessionsKey] = useState(0)
 
   // Reseed the form when the saved profile changes (e.g. after a save).
   if (seedKey !== initialKey) {
@@ -202,12 +204,12 @@ export function ProfilePage() {
             <button
               type="button"
               onClick={() => setCropOpen(true)}
-              aria-label={t('Изменить фото')}
               className="group relative w-fit shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PersonAvatar person={user} size={88} title={false} />
+              <span className="sr-only">{t('Изменить фото')}</span>
+              <PersonAvatar person={user} size={88} title={false} aria-hidden />
               <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                <Camera size={22} />
+                <Camera size={22} aria-hidden />
               </span>
             </button>
             <div className="min-w-0 flex-1">
@@ -388,7 +390,12 @@ export function ProfilePage() {
 
           <ConnectedAccountsSection />
 
-          <SessionsSection />
+          <PasswordSection
+            onOthersSignedOut={() => setSessionsKey((k) => k + 1)}
+          />
+
+          {/* Reloaded after a new password ended the other sessions. */}
+          <SessionsSection key={sessionsKey} />
 
           <MyDataSection />
 

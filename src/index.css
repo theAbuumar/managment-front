@@ -43,19 +43,23 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #3f76ff;
+  /* A shade deeper than the brand #3f76ff: white text on buttons and blue text on
+     light (and light-blue) backgrounds reach 4.5:1 (WCAG AA, 12.F3). */
+  --primary: #2b5fdc;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.961 0 0);
   --secondary-foreground: oklch(0.21 0 0);
   --muted: oklch(0.961 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* Secondary text readable on white and on muted backgrounds (≥ 4.5:1, 12.F3). */
+  --muted-foreground: oklch(0.5 0 0);
   --accent: oklch(0.961 0 0);
   --accent-foreground: oklch(0.21 0 0);
-  --destructive: #ef4444;
+  /* Red text and white text on red read at 4.5:1 (12.F3). */
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: #3f76ff;
+  --ring: #2b5fdc;
   --sidebar: oklch(0.975 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --nav-active-bg: #e9eefc;

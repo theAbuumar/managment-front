@@ -61,9 +61,21 @@ const UNAVAILABLE = new Set([502, 503, 504])
 /** How long a read waits for the connection before it gives up. */
 const WAIT_FOR_SERVER_MS = 60_000
 
+/**
+ * Our own 503 carries the error envelope — a service behind the API (the university
+ * directory, AI) is down, not the connection; a proxy's 502–504 has no envelope.
+ */
+function hasEnvelope(data: unknown): boolean {
+  const error = (data as { error?: { code?: unknown } } | null)?.error
+  return typeof error?.code === 'string'
+}
+
 function unreachable(err: unknown): boolean {
   if (!axios.isAxiosError(err)) return false
-  return !err.response || UNAVAILABLE.has(err.response.status)
+  return (
+    !err.response ||
+    (UNAVAILABLE.has(err.response.status) && !hasEnvelope(err.response.data))
+  )
 }
 
 // Any HTTP answer below 500 means the server is there.
@@ -159,7 +171,7 @@ export function setAccessRevokedHandler(
 }
 
 function toApiError(err: AxiosError): ApiError {
-  if (!err.response || UNAVAILABLE.has(err.response.status)) {
+  if (!err.response || unreachable(err)) {
     return new ApiError(0, 'NETWORK_ERROR', getFriendlyMessage('NETWORK_ERROR'))
   }
   const body = err.response.data as
@@ -172,6 +184,10 @@ function toApiError(err: AxiosError): ApiError {
   const retryAfter = (
     body?.error?.details as { retry_after?: unknown } | undefined
   )?.retry_after
+  // A run of wrong passwords pauses password sign-in (12.B12).
+  const lockedFor = (
+    body?.error?.details as { retry_after_seconds?: unknown } | undefined
+  )?.retry_after_seconds
   // A server failure is the admin's to look into: the message carries the start
   // of the request id, which finds the error in the server log (12.B9).
   const message =
@@ -184,7 +200,12 @@ function toApiError(err: AxiosError): ApiError {
         ? t('Слишком много действий за минуту. Повторите через {{n}} с.', {
             n: retryAfter,
           })
-        : getFriendlyMessage(code)
+        : code === 'PASSWORD_LOCKED' && typeof lockedFor === 'number'
+          ? t(
+              'Слишком много неверных паролей — вход по паролю приостановлен на {{n}} мин. Войдите по коду на почту.',
+              { n: Math.ceil(lockedFor / 60) },
+            )
+          : getFriendlyMessage(code)
   return new ApiError(
     err.response.status,
     code,

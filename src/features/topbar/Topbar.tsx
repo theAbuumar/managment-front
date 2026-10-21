@@ -266,10 +266,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <button
           type="button"
           onClick={() => openPalette(true)}
-          aria-label={t('Поиск ({{keys}})', { keys: paletteShortcut() })}
+          aria-keyshortcuts="Control+K"
           className="hidden h-8 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
         >
-          <Search size={14} className="shrink-0" />
+          <Search size={14} className="shrink-0" aria-hidden />
           <span className="flex-1 truncate text-left">
             {t('Поиск задач, проектов, людей…')}
           </span>
@@ -327,11 +327,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         {/* Profile dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              aria-label={t('Меню профиля')}
-              className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <PersonAvatar person={user} size={28} title={false} />
+            <button className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {/* The name is text, not aria-label: the initials are visible
+                  but are not what the button does (12.F3, label in name). */}
+              <span className="sr-only">{t('Меню профиля')}</span>
+              <PersonAvatar person={user} size={28} title={false} aria-hidden />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

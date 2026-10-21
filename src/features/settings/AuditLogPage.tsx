@@ -38,6 +38,12 @@ const ACTIONS: Record<string, () => string> = {
   'auth.sessions_revoked': () => translate('Выход на всех других устройствах'),
   'auth.identity_linked': () => translate('Привязан способ входа'),
   'auth.identity_unlinked': () => translate('Отвязан способ входа'),
+  'auth.password_set': () => translate('Задан пароль для входа'),
+  'auth.password_changed': () => translate('Изменён пароль для входа'),
+  'auth.password_locked': () =>
+    translate('Вход по паролю заблокирован после неверных попыток'),
+  'workspace.ownership_transferred': () =>
+    translate('Владение пространством передано'),
   'member.added': () => translate('Добавлен сотрудник'),
   'member.updated': () => translate('Изменены роль или должность'),
   'member.removed': () => translate('Сотрудник исключён'),
@@ -75,6 +81,8 @@ const ACTIONS: Record<string, () => string> = {
 }
 
 const DANGER = new Set([
+  'auth.password_locked',
+  'workspace.ownership_transferred',
   'member.removed',
   'member.deactivated',
   'department.deleted',
@@ -93,6 +101,7 @@ const LOGIN_METHODS: Record<string, () => string> = {
   google: () => 'Google',
   github: () => 'GitHub',
   telegram: () => 'Telegram',
+  ldap: () => translate('учётная запись университета'),
   demo: () => translate('демо-вход'),
 }
 
@@ -161,6 +170,17 @@ function details(e: AuditEntry): string {
   if (e.action === 'member.imported') parts.push(...importCounts(meta))
   if (e.action === 'auth.sessions_revoked' && typeof meta.count === 'number') {
     parts.push(translate('сеансов: {{count}}', { count: meta.count }))
+  }
+  // A new password ends the other sessions (12.B12).
+  if (
+    typeof meta.signed_out_sessions === 'number' &&
+    meta.signed_out_sessions > 0
+  ) {
+    parts.push(
+      translate('завершено других сеансов: {{n}}', {
+        n: meta.signed_out_sessions,
+      }),
+    )
   }
   if (typeof meta.role === 'string') {
     const role = ROLE_LABELS[meta.role as MemberRole]?.() ?? meta.role

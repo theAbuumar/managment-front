@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CheckCircle2, Send, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ColorChip } from '@/components/ui/color-chip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PersonAvatar } from '@/components/ui/person-avatar'
 import { DeadlineBadge } from '@/components/ui/deadline-badge'
-import { cn } from '@/lib/utils'
 import { shortName } from '@/lib/people'
 import { errorText } from '@/lib/errorMessages'
 import {
@@ -181,15 +181,9 @@ export function DistributionBlock({
                 {shortName(item.assignee)}
               </span>
             )}
-            <span
-              className={cn('rounded-full px-2 py-0.5 text-xs')}
-              style={{
-                background: `${item.state.color}22`,
-                color: item.state.color,
-              }}
-            >
+            <ColorChip color={item.state.color} className="text-xs">
               {item.state.name}
-            </span>
+            </ColorChip>
             <DeadlineBadge
               dueDate={item.due_date}
               group={item.state.group}

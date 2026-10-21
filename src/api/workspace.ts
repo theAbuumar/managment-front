@@ -195,7 +195,7 @@ export const leaveWorkspace = (workspaceSlug: string) =>
 
 // ─── Members' access (Ф12 12.B7, admin+) ─────────────────────────────────────
 
-export type LoginProvider = 'email' | 'google' | 'github' | 'telegram'
+export type LoginProvider = 'email' | 'google' | 'github' | 'telegram' | 'ldap'
 
 export interface MemberAccess {
   user_id: string
@@ -311,3 +311,30 @@ export const importMembers = (
     content_base64: file.contentBase64,
     dry_run: dryRun,
   })
+
+// ─── Handing the workspace over (12.B3, ADR-034) ──────────────────────────────
+
+/** Step 1 (owner only): a code to the owner's email, or through the bot. */
+export const requestOwnershipCode = (slug: string) =>
+  client.post<
+    unknown,
+    { status: 'otp_sent'; channel: 'email' | 'telegram'; email?: string }
+  >(`/workspaces/${slug}/transfer-ownership/code`)
+
+/**
+ * Step 2: the new owner (an active member, not a guest) and the code. The former
+ * owner stays as an admin. 400 NEW_OWNER_INVALID carries `details.reason`.
+ */
+export const transferOwnership = (
+  slug: string,
+  user_id: string,
+  code: string,
+) =>
+  client.post<
+    unknown,
+    {
+      workspace: WorkspaceData
+      previous_owner: WorkspaceMember
+      new_owner: WorkspaceMember
+    }
+  >(`/workspaces/${slug}/transfer-ownership`, { user_id, code })

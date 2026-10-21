@@ -34,6 +34,7 @@ import {
   type Scope,
   type ScopeKind,
 } from './scopes'
+import { ColorChip } from '@/components/ui/color-chip'
 
 // The chart library loads only when the chart is opened (12.F4).
 const BurndownChart = lazy(() =>
@@ -170,12 +171,12 @@ export function ScopeBanner({
             >
               {scope.name}
             </span>
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
-              style={{ background: `${status.color}1f`, color: status.color }}
+            <ColorChip
+              color={status.color}
+              className="shrink-0 text-[11px] font-medium"
             >
               {status.label}
-            </span>
+            </ColorChip>
           </div>
           {range && (
             <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">

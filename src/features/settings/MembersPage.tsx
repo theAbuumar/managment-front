@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Users, Search, Trash2, Building2, Mail, MonitorSmartphone, MoreHorizontal, Unlink, UserCheck, UserX } from 'lucide-react'
+import { Users, Search, Trash2, Building2, Landmark, Mail, MonitorSmartphone, MoreHorizontal, Unlink, UserCheck, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Table,
@@ -63,13 +63,16 @@ const NONE = '__none__'
 // 'deactivated': members whose access an admin turned off (12.B7).
 type RoleFilter = 'all' | MemberRole | 'deactivated'
 
-type ResettableProvider = Exclude<LoginProvider, 'email'>
+// The email is the account's own, and the university account comes back on the
+// next sign-in: it is turned off in the directory itself.
+type ResettableProvider = Exclude<LoginProvider, 'email' | 'ldap'>
 
 const PROVIDER_NAMES: Record<LoginProvider, () => string> = {
   email: () => translate('Почта'),
   google: () => 'Google',
   github: () => 'GitHub',
   telegram: () => 'Telegram',
+  ldap: () => translate('Учётная запись университета'),
 }
 
 const PROVIDER_ICONS: Record<LoginProvider, React.ReactNode> = {
@@ -77,6 +80,7 @@ const PROVIDER_ICONS: Record<LoginProvider, React.ReactNode> = {
   google: <GoogleIcon />,
   github: <GithubIcon />,
   telegram: <TelegramIcon />,
+  ldap: <Landmark size={14} />,
 }
 
 /** Department ids of `rootId` and everything below it. */
@@ -297,11 +301,12 @@ export function MembersPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('ФИО, email, должность')}
+              aria-label={t('Поиск сотрудников')}
               className="h-9 w-64 pl-8"
             />
           </div>
           <Select value={dept} onValueChange={setDept}>
-            <SelectTrigger className="h-9 w-72">
+            <SelectTrigger className="h-9 w-72" aria-label={t('Подразделение')}>
               <span className="flex min-w-0 items-center gap-2">
                 <Building2 size={14} className="shrink-0 text-muted-foreground" />
                 <span className="truncate">
@@ -326,7 +331,7 @@ export function MembersPage() {
             </label>
           )}
           <Select value={role} onValueChange={(v) => setRole(v as RoleFilter)}>
-            <SelectTrigger className="h-9 w-44">
+            <SelectTrigger className="h-9 w-44" aria-label={t('Роль доступа')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -357,7 +362,9 @@ export function MembersPage() {
                 <TableHead>{t('Подразделение')}</TableHead>
                 <TableHead className="w-44">{t('Роль доступа')}</TableHead>
                 <TableHead className="w-28">{canManage ? t('Активность') : t('В системе с')}</TableHead>
-                <TableHead className="sticky right-0 w-10 bg-background" />
+                <TableHead className="sticky right-0 w-10 bg-background">
+                  <span className="sr-only">{t('Действия')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -424,7 +431,10 @@ export function MembersPage() {
                               patch(m, { department_id: v === NONE ? null : v }, t('Подразделение сохранено'))
                             }
                           >
-                            <SelectTrigger className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input">
+                            <SelectTrigger
+                              className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input"
+                              aria-label={t('Подразделение: {{name}}', { name: fullName(m.user) })}
+                            >
                               <span className="truncate">
                                 <SelectValue />
                               </span>
@@ -454,7 +464,10 @@ export function MembersPage() {
                               )
                             }
                           >
-                            <SelectTrigger className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input">
+                            <SelectTrigger
+                              className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input"
+                              aria-label={t('Роль доступа: {{name}}', { name: fullName(m.user) })}
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -582,7 +595,9 @@ export function MembersPage() {
 /** Login methods an admin may unlink: not the email, never the last one (12.B7). */
 function resettable(info: MemberAccess | undefined): ResettableProvider[] {
   if (!info || info.providers.length < 2) return []
-  return info.providers.filter((p): p is ResettableProvider => p !== 'email')
+  return info.providers.filter(
+    (p): p is ResettableProvider => p !== 'email' && p !== 'ldap',
+  )
 }
 
 /** Last activity, login methods and devices signed in (admin view, 12.B7). */

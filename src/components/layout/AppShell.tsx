@@ -41,6 +41,13 @@ export function AppShell() {
       data-print="page"
     >
       <div className="contents" data-print="hide">
+        {/* Keyboard: the first Tab offers to skip the top bar and the sidebar (12.F3). */}
+        <a
+          href="#content"
+          className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-2"
+        >
+          {t('Перейти к содержимому')}
+        </a>
         <Topbar onMenuClick={() => setMobileOpen(true)} />
         <CommandPalette />
         {readOnly && (
@@ -67,7 +74,9 @@ export function AppShell() {
         </Sheet>
 
         <main
-          className="flex-1 overflow-y-auto bg-background"
+          id="content"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto bg-background focus:outline-none"
           data-print="page"
         >
           <Outlet />

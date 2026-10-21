@@ -131,8 +131,6 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, Props>(
             onKeyDown?.(e)
           }}
           className={className}
-          aria-autocomplete="list"
-          aria-expanded={open}
           {...rest}
         />
         {open && (

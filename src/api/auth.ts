@@ -116,7 +116,52 @@ export interface AuthProviders {
   telegram: boolean
   /** DEMO_MODE: quick login as the demo accounts. */
   demo: boolean
+  /** University account — LDAP / Active Directory (12.B10). */
+  ldap?: boolean
+  /** How the login page names it, and a hint under the login field. */
+  ldap_label?: string | null
+  ldap_hint?: string | null
 }
+
+// ─── University account: LDAP / Active Directory (12.B10, ADR-034) ─────────────
+
+/** Login (as in the university network, or the work email) and password. */
+export const ldapLogin = (login: string, password: string) =>
+  client.post<unknown, AuthResponse>('/auth/ldap/login', { login, password })
+
+// ─── A password as an additional sign-in method (12.B12, ADR-034) ──────────────
+
+/** Email + password (`/auth/login`); 10 wrong in a row pause it for 15 minutes. */
+export const passwordLogin = (email: string, password: string) =>
+  client.post<unknown, AuthResponse>('/auth/login', { email, password })
+
+export interface PasswordResult {
+  has_password: true
+  password_changed_at: string
+  /** Other sessions that were ended. */
+  signed_out_sessions: number
+}
+
+/**
+ * Step 1 of setting a password: a 6-digit code to the account's email. The server
+ * checks the password against the policy first, so a weak one sends no code.
+ */
+export const requestPasswordCode = (password: string) =>
+  client.post<unknown, { status: 'otp_sent'; channel: 'email'; email: string }>(
+    '/auth/password/code',
+    { password },
+  )
+
+/** Step 2: the first password, or a new one instead of a forgotten one. */
+export const setPassword = (code: string, password: string) =>
+  client.post<unknown, PasswordResult>('/auth/password/set', { code, password })
+
+/** Change knowing the current password. */
+export const changePassword = (current_password: string, password: string) =>
+  client.post<unknown, PasswordResult>('/auth/password/change', {
+    current_password,
+    password,
+  })
 
 export const getAuthProviders = () =>
   client.get<unknown, AuthProviders>('/auth/providers')
@@ -125,7 +170,7 @@ export const getAuthProviders = () =>
 
 export interface Identity {
   id: string
-  provider: 'email' | 'google' | 'github' | 'telegram'
+  provider: 'email' | 'google' | 'github' | 'telegram' | 'ldap'
   provider_email: string | null
   created_at: string
 }
@@ -153,7 +198,7 @@ export const unlinkIdentity = (provider: Identity['provider']) =>
 
 export interface AuthSession {
   id: string
-  /** password | email_code | google | github | telegram | demo; null for old sessions. */
+  /** password | email_code | google | github | telegram | ldap | demo; null for old sessions. */
   method: string | null
   /** «Chrome 128», «Safari 17»… parsed from the User-Agent by the server. */
   browser: string | null

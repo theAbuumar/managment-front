@@ -27,6 +27,7 @@ const METHODS: Record<string, () => string> = {
   google: () => translate('через Google'),
   github: () => translate('через GitHub'),
   telegram: () => translate('через Telegram'),
+  ldap: () => translate('по учётной записи университета'),
   demo: () => translate('демо-вход'),
 }
 
