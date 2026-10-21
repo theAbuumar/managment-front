@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send } from 'lucide-react'
+import { CalendarClock, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -16,6 +16,7 @@ import {
   getNotificationSettings,
   updateNotificationSettings,
   sendTestNotification,
+  sendDigestNow,
   type NotificationGroup,
   type NotificationSettings,
   type NotificationSettingsPatch,
@@ -24,8 +25,9 @@ import { errorText } from '@/lib/errorMessages'
 import { t as translate } from '@/i18n'
 
 // Which events reach the user outside the app (Ф8 8.F3): event group × channel
-// (Telegram, email as the fallback), quiet hours and a test message. Saved on the
-// server at once; the in-app inbox always gets everything.
+// (Telegram, email as the fallback), quiet hours, digests (8.B5) and a test message.
+// Saved on the server at once; the in-app inbox always gets everything. Letters link
+// here with `/profile#notifications`.
 
 const GROUPS: {
   key: NotificationGroup
@@ -53,6 +55,11 @@ const GROUPS: {
     label: () => translate('Эскалации'),
     hint: () => translate('поручение долго просрочено'),
   },
+  {
+    key: 'digest',
+    label: () => translate('Сводки'),
+    hint: () => translate('ежедневная и недельная сводка — настраиваются ниже'),
+  },
 ]
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h)
@@ -62,6 +69,16 @@ export function NotificationChannelsSection() {
   const { t } = useTranslation()
   const [settings, setSettings] = useState<NotificationSettings | null>(null)
   const [testing, setTesting] = useState(false)
+  const [digesting, setDigesting] = useState<'daily' | 'weekly' | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const loaded = settings !== null
+
+  // «Настроить уведомления» in a letter opens /profile#notifications.
+  useEffect(() => {
+    if (loaded && window.location.hash === '#notifications') {
+      sectionRef.current?.scrollIntoView({ block: 'start' })
+    }
+  }, [loaded])
 
   // Reload when the tab regains focus: Telegram may have just been linked.
   useEffect(() => {
@@ -113,6 +130,35 @@ export function NotificationChannelsSection() {
     )
   }
 
+  function setDigest(patch: Partial<NotificationSettings['digest']>) {
+    if (!settings) return
+    void save(
+      { digest: patch },
+      { ...settings, digest: { ...settings.digest, ...patch } },
+    )
+  }
+
+  async function digestNow(kind: 'daily' | 'weekly') {
+    setDigesting(kind)
+    try {
+      const { delivered_to } = await sendDigestNow(kind)
+      if (delivered_to === 'telegram')
+        toast.success(t('Сводка отправлена в Telegram'))
+      else if (delivered_to === 'email')
+        toast.success(t('Сводка отправлена на почту'))
+      else
+        toast.info(
+          t(
+            'Некуда отправить: включите сводки для Telegram или почты в таблице выше',
+          ),
+        )
+    } catch (err) {
+      toast.error(errorText(err, t('Не удалось отправить сводку')))
+    } finally {
+      setDigesting(null)
+    }
+  }
+
   async function test() {
     setTesting(true)
     try {
@@ -133,7 +179,11 @@ export function NotificationChannelsSection() {
   }
 
   return (
-    <section className="rounded-lg border border-border p-4 md:p-5">
+    <section
+      ref={sectionRef}
+      id="notifications"
+      className="scroll-mt-16 rounded-lg border border-border p-4 md:p-5"
+    >
       <h2 className="text-sm font-semibold">
         {t('Уведомления в Telegram и на почту')}
       </h2>
@@ -238,9 +288,95 @@ export function NotificationChannelsSection() {
             </div>
             <p className="w-full text-xs text-muted-foreground">
               {t(
-                'В это время сообщения в Telegram и письма не отправляются, уведомления остаются в приложении. Время — по часовому поясу профиля.',
+                'В это время сообщения в Telegram и письма не отправляются — они придут, когда тихие часы закончатся. В приложении уведомления появляются сразу. Время — по часовому поясу профиля.',
               )}
             </p>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CalendarClock size={15} className="text-muted-foreground" />
+              {t('Сводки')}
+            </div>
+            <label
+              htmlFor="digest-daily"
+              className="flex items-start justify-between gap-4 text-sm"
+            >
+              <span>
+                <span className="block">
+                  {t('Каждый день — о вашей работе')}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t(
+                    'сроки на сегодня, просроченное, поручения без отметки «Ознакомлен», что ждёт вашего решения. Пустая сводка не приходит.',
+                  )}
+                </span>
+              </span>
+              <Switch
+                id="digest-daily"
+                checked={settings.digest.daily}
+                onCheckedChange={(v) => setDigest({ daily: v })}
+              />
+            </label>
+            <label
+              htmlFor="digest-weekly"
+              className="flex items-start justify-between gap-4 text-sm"
+            >
+              <span>
+                <span className="block">
+                  {t('По понедельникам — по вашему подразделению')}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {settings.is_department_head
+                    ? t(
+                        'за прошлую неделю: поступило, исполнено в срок и с опозданием, что просрочено сейчас.',
+                      )
+                    : t('Приходит руководителям подразделений.')}
+                </span>
+              </span>
+              <Switch
+                id="digest-weekly"
+                checked={settings.is_department_head && settings.digest.weekly}
+                disabled={!settings.is_department_head}
+                onCheckedChange={(v) => setDigest({ weekly: v })}
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">{t('Присылать в')}</span>
+              <HourSelect
+                value={settings.digest.hour}
+                disabled={false}
+                label={t('Время отправки сводок')}
+                onChange={(hour) => setDigest({ hour })}
+              />
+              <span className="text-xs text-muted-foreground">
+                {t('по часовому поясу профиля')}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void digestNow('daily')}
+                disabled={digesting !== null}
+              >
+                {digesting === 'daily'
+                  ? t('Отправляем…')
+                  : t('Прислать сводку сейчас')}
+              </Button>
+              {settings.is_department_head && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void digestNow('weekly')}
+                  disabled={digesting !== null}
+                >
+                  {digesting === 'weekly'
+                    ? t('Отправляем…')
+                    : t('Прислать недельную сводку')}
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="mt-4 flex items-center gap-3">

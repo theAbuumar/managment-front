@@ -75,8 +75,9 @@ export interface ReportReady {
   file_name: string | null
 }
 
-export const isReportReady = (d: AppNotification['details']): d is ReportReady =>
-  !!d && 'run_id' in d
+export const isReportReady = (
+  d: AppNotification['details'],
+): d is ReportReady => !!d && 'run_id' in d
 
 export interface NotificationPage {
   data: AppNotification[]
@@ -95,7 +96,10 @@ interface ListParams {
 
 export const getNotifications = (slug: string, params?: ListParams) =>
   client.get<unknown, NotificationPage>(`/workspaces/${slug}/notifications/`, {
-    params: { ...params, type: params?.type?.length ? params.type.join(',') : undefined },
+    params: {
+      ...params,
+      type: params?.type?.length ? params.type.join(',') : undefined,
+    },
   })
 
 export const markNotificationRead = (slug: string, id: string) =>
@@ -113,36 +117,52 @@ export const markAllNotificationsRead = (slug: string) =>
     `/workspaces/${slug}/notifications/read-all`,
   )
 
-// ─── Personal notification settings (8.B2) ────────────────────────────────────
+// ─── Personal notification settings (8.B2, 8.B5) ──────────────────────────────
 
-export type NotificationGroup = 'assigned' | 'review' | 'deadlines' | 'escalation'
+export type NotificationGroup =
+  'assigned' | 'review' | 'deadlines' | 'escalation' | 'digest'
 export type ChannelMatrix = Record<NotificationGroup, boolean>
 
-/** Which events go to Telegram / email and quiet hours; in-app is always on. */
+/** Which events go to Telegram / email, quiet hours, digests; in-app is always on. */
 export interface NotificationSettings {
   telegram: ChannelMatrix
   /** The fallback channel: used when the message does not go to Telegram. */
   email: ChannelMatrix
-  /** Local hours (profile time zone, else the workspace one). */
+  /** Local hours (profile time zone, else the workspace one); copies wait until they end. */
   quiet_hours: { enabled: boolean; from: number; to: number }
+  /** Daily — about one's own work; weekly — a department summary for heads (8.B5). */
+  digest: { daily: boolean; weekly: boolean; hour: number }
   /** Channels that can reach the user at all. */
   channels: { telegram: boolean; email: boolean }
   groups: NotificationGroup[]
+  /** The weekly digest reaches department heads only. */
+  is_department_head: boolean
 }
 
 export type NotificationSettingsPatch = {
   telegram?: Partial<ChannelMatrix>
   email?: Partial<ChannelMatrix>
   quiet_hours?: Partial<NotificationSettings['quiet_hours']>
+  digest?: Partial<NotificationSettings['digest']>
 }
 
 export const getNotificationSettings = () =>
   client.get<unknown, NotificationSettings>('/auth/me/notification-settings')
 
 export const updateNotificationSettings = (patch: NotificationSettingsPatch) =>
-  client.put<unknown, NotificationSettings>('/auth/me/notification-settings', patch)
+  client.put<unknown, NotificationSettings>(
+    '/auth/me/notification-settings',
+    patch,
+  )
 
 export const sendTestNotification = () =>
   client.post<unknown, { delivered_to: 'telegram' | 'email' | null }>(
     '/auth/me/notification-settings/test',
   )
+
+/** «Прислать сейчас»: the daily or weekly digest outside its schedule (8.B5). */
+export const sendDigestNow = (kind: 'daily' | 'weekly') =>
+  client.post<
+    unknown,
+    { delivered_to: 'telegram' | 'email' | null; status: string | null }
+  >('/auth/me/notification-settings/digest', { kind })

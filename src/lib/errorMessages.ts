@@ -131,6 +131,11 @@ const ERROR_MESSAGES: Record<string, () => string> = {
     ),
   IMPORT_TOO_MANY_ROWS: () =>
     t('За один раз — не больше 500 строк. Разделите файл на части.'),
+  // Ф8 8.B5 (ADR-033).
+  NOT_DEPARTMENT_HEAD: () =>
+    t(
+      'Недельная сводка — по подразделению, которым вы руководите. Вы не руководите подразделением.',
+    ),
 }
 
 export function getFriendlyMessage(code?: string): string {
